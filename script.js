@@ -426,6 +426,7 @@ async function initShanxiMap() {
 }
 
 // 根据地区搜索名人（支持市、县名称模糊匹配）
+// 根据地区搜索名人（支持市、县名称模糊匹配 + 去"市"字匹配）
 async function searchByRegion(regionName) {
     const grid = document.getElementById('figuresGrid');
     if (!grid) return;
@@ -433,13 +434,47 @@ async function searchByRegion(regionName) {
     grid.innerHTML = '<div class="loading">搜索中...</div>';
 
     try {
-        // 调用搜索 API，按地区筛选
-        const response = await fetch(`/api/search?county=${encodeURIComponent(regionName)}`);
-        const result = await response.json();
-
-        if (result.success && result.data && result.data.length > 0) {
-            renderFigures(result.data);
-            // 滚动到列表区域
+        // 生成多个搜索关键词：原词、去掉"市"、去掉"县"、去掉"区"
+        let keywords = [regionName];
+        
+        // 去掉末尾的"市"（如 太原市 → 太原）
+        if (regionName.endsWith('市')) {
+            keywords.push(regionName.slice(0, -1));
+        }
+        // 去掉末尾的"县"（如 闻喜县 → 闻喜）
+        if (regionName.endsWith('县')) {
+            keywords.push(regionName.slice(0, -1));
+        }
+        // 去掉末尾的"区"（如 盐湖区 → 盐湖）
+        if (regionName.endsWith('区')) {
+            keywords.push(regionName.slice(0, -1));
+        }
+        
+        // 去重
+        keywords = [...new Set(keywords)];
+        
+        // 尝试每个关键词搜索
+        let allResults = [];
+        for (const kw of keywords) {
+            const response = await fetch(`/api/search?county=${encodeURIComponent(kw)}`);
+            const result = await response.json();
+            if (result.success && result.data && result.data.length > 0) {
+                allResults = [...allResults, ...result.data];
+            }
+        }
+        
+        // 去重（按id）
+        const uniqueResults = [];
+        const ids = new Set();
+        for (const item of allResults) {
+            if (!ids.has(item.id)) {
+                ids.add(item.id);
+                uniqueResults.push(item);
+            }
+        }
+        
+        if (uniqueResults.length > 0) {
+            renderFigures(uniqueResults);
             grid.scrollIntoView({ behavior: 'smooth', block: 'start' });
         } else {
             grid.innerHTML = `<div class="loading">📌 ${regionName} 暂无名录记录，快去添加第一位吧！</div>`;
