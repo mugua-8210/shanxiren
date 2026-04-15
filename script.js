@@ -4,11 +4,31 @@
 const SUPABASE_URL = 'https://ojibgfhavlhsqqnkfcte.supabase.co';
 const SUPABASE_ANON_KEY = 'sb_publishable_auyTRPEo0Japh-4ijdS7Dg_hcaFhNeO';
 
-// 注意：上面的 SUPABASE_ANON_KEY 需要替换成你实际的 key
-// 因为这是前端代码，实际部署时建议通过环境变量注入
-
 // 初始化 Supabase 客户端
 let supabaseClient = null;
+
+// ========== 山西全境市县映射表（市级 → 县级列表）==========
+const cityToCounties = {
+    "太原市": ["小店区", "迎泽区", "杏花岭区", "尖草坪区", "万柏林区", "晋源区", "清徐县", "阳曲县", "娄烦县", "古交市"],
+    "运城市": ["盐湖区", "永济市", "河津市", "芮城县", "临猗县", "万荣县", "新绛县", "稷山县", "闻喜县", "夏县", "绛县", "平陆县", "垣曲县"],
+    "临汾市": ["尧都区", "侯马市", "霍州市", "曲沃县", "翼城县", "襄汾县", "洪洞县", "古县", "安泽县", "浮山县", "吉县", "乡宁县", "大宁县", "隰县", "永和县", "蒲县", "汾西县"],
+    "大同市": ["平城区", "云冈区", "新荣区", "云州区", "阳高县", "天镇县", "广灵县", "灵丘县", "浑源县", "左云县"],
+    "长治市": ["潞州区", "上党区", "屯留区", "潞城区", "襄垣县", "平顺县", "黎城县", "壶关县", "长子县", "武乡县", "沁县", "沁源县"],
+    "晋城市": ["城区", "高平市", "泽州县", "沁水县", "阳城县", "陵川县"],
+    "忻州市": ["忻府区", "原平市", "定襄县", "五台县", "代县", "繁峙县", "宁武县", "静乐县", "神池县", "五寨县", "岢岚县", "河曲县", "保德县", "偏关县"],
+    "晋中市": ["榆次区", "太谷区", "介休市", "榆社县", "左权县", "和顺县", "昔阳县", "寿阳县", "祁县", "平遥县", "灵石县"],
+    "吕梁市": ["离石区", "孝义市", "汾阳市", "文水县", "交城县", "兴县", "临县", "柳林县", "石楼县", "岚县", "方山县", "中阳县", "交口县"],
+    "阳泉市": ["城区", "矿区", "郊区", "平定县", "盂县"],
+    "朔州市": ["朔城区", "平鲁区", "怀仁市", "山阴县", "应县", "右玉县"]
+};
+
+// ========== 县级 → 市级 反向映射 ==========
+const countyToCity = {};
+for (const [city, counties] of Object.entries(cityToCounties)) {
+    for (const county of counties) {
+        countyToCity[county] = city;
+    }
+}
 
 // 等待 DOM 加载完成
 document.addEventListener('DOMContentLoaded', () => {
@@ -127,6 +147,7 @@ async function handleAddPerson(e) {
     const formData = {
         name: document.getElementById('name')?.value,
         dynasty: document.getElementById('dynasty')?.value,
+        city: document.getElementById('city')?.value,
         county: document.getElementById('county')?.value,
         birth_year: document.getElementById('birth_year')?.value || null,
         death_year: document.getElementById('death_year')?.value || null,
@@ -150,7 +171,6 @@ async function handleAddPerson(e) {
         if (result.success) {
             showMessage('添加成功！AI 正在生成详细介绍，请稍后查看。', 'success');
             e.target.reset();
-            // 跳转到详情页
             setTimeout(() => {
                 window.location.href = `/person.html?id=${result.data.id}`;
             }, 1500);
@@ -205,6 +225,10 @@ function renderPersonDetail(person) {
                 <div class="info-value">${person.dynasty || '待考'}</div>
             </div>
             <div class="info-row">
+                <div class="info-label">所属市</div>
+                <div class="info-value">${person.city || '待考'}</div>
+            </div>
+            <div class="info-row">
                 <div class="info-label">籍贯</div>
                 <div class="info-value">${person.county || '待考'}</div>
             </div>
@@ -220,7 +244,6 @@ function renderPersonDetail(person) {
         <div id="aiContent"></div>
     `;
 
-    // 设置页面标题
     document.title = `${person.name} - 山西名人录`;
 }
 
@@ -341,21 +364,62 @@ function showMessage(msg, type) {
     }, 3000);
 }
 
-// 如果在详情页，加载详情
-if (window.location.pathname.includes('person.html')) {
-    loadPersonDetail();
-}
 // ========== 山西地图功能 ==========
+
+// 根据地区搜索名人（支持市、县智能匹配）
+async function searchByRegion(regionName) {
+    const grid = document.getElementById('figuresGrid');
+    if (!grid) return;
+
+    grid.innerHTML = '<div class="loading">搜索中...</div>';
+
+    try {
+        let searchCity = null;
+        let searchCounty = null;
+        
+        // 判断点击的是市还是县
+        if (cityToCounties[regionName]) {
+            // 点击的是市：搜索 city 字段
+            searchCity = regionName;
+        } else if (countyToCity[regionName]) {
+            // 点击的是县/区：搜索 county 字段
+            searchCounty = regionName;
+            searchCity = countyToCity[regionName];
+        } else {
+            // 未知地区，尝试模糊匹配
+            searchCounty = regionName;
+        }
+        
+        let url;
+        if (searchCounty) {
+            url = `/api/search?county=${encodeURIComponent(searchCounty)}`;
+        } else {
+            url = `/api/search?city=${encodeURIComponent(searchCity)}`;
+        }
+        
+        const response = await fetch(url);
+        const result = await response.json();
+
+        if (result.success && result.data && result.data.length > 0) {
+            renderFigures(result.data);
+            grid.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            showMessage(`找到 ${result.data.length} 位${searchCounty || searchCity}的名人`, 'success');
+        } else {
+            grid.innerHTML = `<div class="loading">📌 ${regionName} 暂无名录记录，快去添加第一位吧！</div>`;
+        }
+    } catch (error) {
+        console.error('搜索失败:', error);
+        grid.innerHTML = '<div class="loading">搜索失败，请重试</div>';
+    }
+}
 
 // 初始化山西地图
 async function initShanxiMap() {
     const mapContainer = document.getElementById('shanxi-map');
     if (!mapContainer) return;
 
-    // 创建地图（山西中心坐标：112.5°E, 37.8°N）
     const map = L.map('shanxi-map').setView([37.8, 112.5], 7);
 
-    // 添加免费底图（CartoDB 浅色风格）
     L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
         attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>',
         subdomains: 'abcd',
@@ -364,27 +428,23 @@ async function initShanxiMap() {
     }).addTo(map);
 
     try {
-        // 加载 GeoJSON 数据
         const response = await fetch('/shanxi.geojson');
         const geojsonData = await response.json();
 
-        // 定义城市名称映射（GeoJSON 里的字段名可能是 'name' 或 'NAME'）
         function getCityName(feature) {
             return feature.properties.name || feature.properties.NAME || feature.properties.市;
         }
 
-        // 添加地图图层
         const geojsonLayer = L.geoJSON(geojsonData, {
             style: {
-                color: '#8b1a1a',      // 边框颜色（山西红）
+                color: '#8b1a1a',
                 weight: 2,
-                fillColor: '#d4a373',   // 填充色
+                fillColor: '#d4a373',
                 fillOpacity: 0.4
             },
             onEachFeature: function (feature, layer) {
                 const cityName = getCityName(feature);
                 
-                // 鼠标悬停高亮
                 layer.on('mouseover', function () {
                     layer.setStyle({
                         fillColor: '#e07a5f',
@@ -399,16 +459,13 @@ async function initShanxiMap() {
                     layer.closeTooltip();
                 });
                 
-                // 点击事件：搜索该地区的名人
                 layer.on('click', async function () {
                     showMessage(`正在加载 ${cityName} 的名人...`, 'success');
                     await searchByRegion(cityName);
-                    // 地图高亮选中的区域
                     layer.setStyle({
                         fillColor: '#8b1a1a',
                         fillOpacity: 0.8
                     });
-                    // 3秒后恢复颜色
                     setTimeout(() => {
                         geojsonLayer.resetStyle(layer);
                     }, 2000);
@@ -416,7 +473,6 @@ async function initShanxiMap() {
             }
         }).addTo(map);
 
-        // 添加比例尺
         L.control.scale({ metric: true, imperial: false }).addTo(map);
 
     } catch (error) {
@@ -425,69 +481,13 @@ async function initShanxiMap() {
     }
 }
 
-// 根据地区搜索名人（支持市、县名称模糊匹配）
-// 根据地区搜索名人（支持市、县名称模糊匹配 + 去"市"字匹配）
-async function searchByRegion(regionName) {
-    const grid = document.getElementById('figuresGrid');
-    if (!grid) return;
-
-    grid.innerHTML = '<div class="loading">搜索中...</div>';
-
-    try {
-        // 生成多个搜索关键词：原词、去掉"市"、去掉"县"、去掉"区"
-        let keywords = [regionName];
-        
-        // 去掉末尾的"市"（如 太原市 → 太原）
-        if (regionName.endsWith('市')) {
-            keywords.push(regionName.slice(0, -1));
-        }
-        // 去掉末尾的"县"（如 闻喜县 → 闻喜）
-        if (regionName.endsWith('县')) {
-            keywords.push(regionName.slice(0, -1));
-        }
-        // 去掉末尾的"区"（如 盐湖区 → 盐湖）
-        if (regionName.endsWith('区')) {
-            keywords.push(regionName.slice(0, -1));
-        }
-        
-        // 去重
-        keywords = [...new Set(keywords)];
-        
-        // 尝试每个关键词搜索
-        let allResults = [];
-        for (const kw of keywords) {
-            const response = await fetch(`/api/search?county=${encodeURIComponent(kw)}`);
-            const result = await response.json();
-            if (result.success && result.data && result.data.length > 0) {
-                allResults = [...allResults, ...result.data];
-            }
-        }
-        
-        // 去重（按id）
-        const uniqueResults = [];
-        const ids = new Set();
-        for (const item of allResults) {
-            if (!ids.has(item.id)) {
-                ids.add(item.id);
-                uniqueResults.push(item);
-            }
-        }
-        
-        if (uniqueResults.length > 0) {
-            renderFigures(uniqueResults);
-            grid.scrollIntoView({ behavior: 'smooth', block: 'start' });
-        } else {
-            grid.innerHTML = `<div class="loading">📌 ${regionName} 暂无名录记录，快去添加第一位吧！</div>`;
-        }
-    } catch (error) {
-        console.error('搜索失败:', error);
-        grid.innerHTML = '<div class="loading">搜索失败，请重试</div>';
-    }
+// 如果在详情页，加载详情
+if (window.location.pathname.includes('person.html')) {
+    loadPersonDetail();
 }
 
 // 页面加载时初始化地图
 if (document.getElementById('shanxi-map')) {
-    // 等待 DOM 完全加载
     if (document.readyState === 'loading') {
         document.addEventListener('DOMContentLoaded', initShanxiMap);
     } else {
