@@ -266,11 +266,13 @@ async function loadApprovedContributions(personId) {
         <div class="detail-card">
             <h3>📝 网友补充</h3>
             ${data.map(item => `
-                <div class="info-row" style="margin-bottom: 1rem;">
-                    <div class="info-label">${escapeHtml(item.field_name)}</div>
+                <div class="info-row" style="margin-bottom: 1rem; border-bottom: 1px solid #eee; padding-bottom: 0.75rem;">
+                    <div class="info-label" style="font-weight: 600;">${escapeHtml(item.field_name)}</div>
                     <div class="info-value">
-                        ${escapeHtml(item.new_value)}
-                        <div class="contributor-text">📅 补充时间：${new Date(item.created_at).toLocaleString()}</div>
+                        <div style="white-space: pre-wrap;">${escapeHtml(item.new_value)}</div>
+                        <div class="contributor-text" style="color: #888; font-size: 0.75rem; margin-top: 0.5rem;">
+                            📅 网友补充于：${new Date(item.created_at).toLocaleString()}
+                        </div>
                     </div>
                 </div>
             `).join('')}
