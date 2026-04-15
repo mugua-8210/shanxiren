@@ -1,13 +1,13 @@
 // 山西名人录 - 前端核心逻辑
 
-// Supabase 配置（使用你在 Vercel 配置的环境变量）
+// Supabase 配置
 const SUPABASE_URL = 'https://ojibgfhavlhsqqnkfcte.supabase.co';
 const SUPABASE_ANON_KEY = 'sb_publishable_auyTRPEo0Japh-4ijdS7Dg_hcaFhNeO';
 
 // 初始化 Supabase 客户端
 let supabaseClient = null;
 
-// ========== 山西全境市县映射表（市级 → 县级列表）==========
+// ========== 山西全境市县映射表 ==========
 const cityToCounties = {
     "太原市": ["小店区", "迎泽区", "杏花岭区", "尖草坪区", "万柏林区", "晋源区", "清徐县", "阳曲县", "娄烦县", "古交市"],
     "运城市": ["盐湖区", "永济市", "河津市", "芮城县", "临猗县", "万荣县", "新绛县", "稷山县", "闻喜县", "夏县", "绛县", "平陆县", "垣曲县"],
@@ -22,7 +22,7 @@ const cityToCounties = {
     "朔州市": ["朔城区", "平鲁区", "怀仁市", "山阴县", "应县", "右玉县"]
 };
 
-// ========== 县级 → 市级 反向映射 ==========
+// 县级 → 市级 反向映射
 const countyToCity = {};
 for (const [city, counties] of Object.entries(cityToCounties)) {
     for (const county of counties) {
@@ -48,7 +48,6 @@ async function initSupabase() {
 
 // 绑定页面事件
 function bindEvents() {
-    // 搜索按钮
     const searchBtn = document.getElementById('searchBtn');
     if (searchBtn) {
         searchBtn.addEventListener('click', () => {
@@ -59,13 +58,11 @@ function bindEvents() {
         });
     }
 
-    // 添加名人表单
     const addForm = document.getElementById('addPersonForm');
     if (addForm) {
         addForm.addEventListener('submit', handleAddPerson);
     }
 
-    // 补充信息表单
     const contributeForm = document.getElementById('contributeForm');
     if (contributeForm) {
         contributeForm.addEventListener('submit', handleContribute);
@@ -203,6 +200,7 @@ async function loadPersonDetail() {
         if (result.success && result.data) {
             renderPersonDetail(result.data);
             loadAIContent(personId);
+            loadApprovedContributions(personId);  // 新增：加载已审核的补充
         } else {
             document.getElementById('detailContent').innerHTML = '<div class="loading">未找到该名人信息</div>';
         }
@@ -242,9 +240,39 @@ function renderPersonDetail(person) {
             </div>
         </div>
         <div id="aiContent"></div>
+        <div id="contributionsList"></div>
     `;
 
     document.title = `${person.name} - 山西名人录`;
+}
+
+// 加载已审核的补充信息
+async function loadApprovedContributions(personId) {
+    if (!supabaseClient) return;
+    
+    const { data, error } = await supabaseClient
+        .from('user_contribution')
+        .select('field_name, new_value, created_at')
+        .eq('person_id', parseInt(personId))
+        .eq('status', 'approved')
+        .order('created_at', { ascending: false });
+
+    if (error || !data || data.length === 0) return;
+
+    const container = document.getElementById('contributionsList');
+    if (!container) return;
+
+    container.innerHTML = `
+        <div class="detail-card">
+            <h3>📝 网友补充</h3>
+            ${data.map(item => `
+                <div class="info-row">
+                    <div class="info-label">${escapeHtml(item.field_name)}</div>
+                    <div class="info-value">${escapeHtml(item.new_value)}</div>
+                </div>
+            `).join('')}
+        </div>
+    `;
 }
 
 // 加载 AI 生成的内容
@@ -310,7 +338,7 @@ async function handleContribute(e) {
         const result = await response.json();
 
         if (result.success) {
-            showMessage('感谢您的补充！信息已提交审核。', 'success');
+            showMessage('补充信息已提交，等待管理员审核。', 'success');
             e.target.reset();
         } else {
             showMessage(result.error || '提交失败，请重试', 'error');
@@ -329,7 +357,7 @@ function goToDetail(id) {
     window.location.href = `/person.html?id=${id}`;
 }
 
-// 工具函数：转义 HTML
+// 工具函数
 function escapeHtml(str) {
     if (!str) return '';
     return str
@@ -340,7 +368,6 @@ function escapeHtml(str) {
         .replace(/'/g, '&#39;');
 }
 
-// 格式化生卒年
 function formatBirthYear(birth, death) {
     if (!birth && !death) return '不详';
     if (birth && !death) return `公元${birth}年`;
@@ -348,7 +375,6 @@ function formatBirthYear(birth, death) {
     return `公元${birth}年 - ${death}年`;
 }
 
-// 显示提示消息
 function showMessage(msg, type) {
     const container = document.querySelector('.container');
     if (!container) return;
@@ -366,7 +392,6 @@ function showMessage(msg, type) {
 
 // ========== 山西地图功能 ==========
 
-// 根据地区搜索名人（精确匹配市或县）
 async function searchByRegion(regionName) {
     const grid = document.getElementById('figuresGrid');
     if (!grid) return;
@@ -377,24 +402,18 @@ async function searchByRegion(regionName) {
         let searchCity = null;
         let searchCounty = null;
         
-        // 判断点击的是市还是县
         if (cityToCounties[regionName]) {
-            // 点击的是市：精确搜索 city 字段
             searchCity = regionName;
         } else if (countyToCity[regionName]) {
-            // 点击的是县/区：精确搜索 county 字段
             searchCounty = regionName;
         } else {
-            // 未知地区，按原词精确匹配
             searchCounty = regionName;
         }
         
         let url;
         if (searchCounty) {
-            // 按县/区精确匹配
             url = `/api/search?county_exact=${encodeURIComponent(searchCounty)}`;
         } else {
-            // 按市精确匹配
             url = `/api/search?city_exact=${encodeURIComponent(searchCity)}`;
         }
         
@@ -414,7 +433,6 @@ async function searchByRegion(regionName) {
     }
 }
 
-// 初始化山西地图
 async function initShanxiMap() {
     const mapContainer = document.getElementById('shanxi-map');
     if (!mapContainer) return;
@@ -482,12 +500,11 @@ async function initShanxiMap() {
     }
 }
 
-// 如果在详情页，加载详情
+// 页面初始化
 if (window.location.pathname.includes('person.html')) {
     loadPersonDetail();
 }
 
-// 页面加载时初始化地图
 if (document.getElementById('shanxi-map')) {
     if (document.readyState === 'loading') {
         document.addEventListener('DOMContentLoaded', initShanxiMap);
