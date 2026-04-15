@@ -319,20 +319,20 @@
 }
 
         async function reject(id) {
-            const { error } = await supabaseClient
-                .from('user_contribution')
-                .update({ status: 'rejected' })
-                .eq('id', id);
+    // 使用 RPC 调用 SQL 函数更新状态
+    const { error } = await supabaseClient.rpc('reject_contribution', {
+        contribution_id: id
+    });
 
-            if (error) {
-                alert('操作失败: ' + error.message);
-                return;
-            }
+    if (error) {
+        alert('操作失败: ' + error.message);
+        return;
+    }
 
-            alert('已拒绝');
-            await loadPendingContributions();
-            await loadHistoryContributions();
-        }
+    alert('已拒绝');
+    await loadPendingContributions();
+    await loadHistoryContributions();
+}
 
         function formatTime(timeStr) {
             if (!timeStr) return '时间未知';
