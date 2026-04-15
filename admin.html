@@ -6,6 +6,91 @@
     <title>管理员审核 - 山西名人录</title>
     <link rel="stylesheet" href="style.css">
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <style>
+        .tab-bar {
+            display: flex;
+            gap: 1rem;
+            margin-bottom: 1.5rem;
+            border-bottom: 2px solid #eee;
+            padding-bottom: 0.5rem;
+        }
+        .tab-btn {
+            background: none;
+            border: none;
+            padding: 0.5rem 1.5rem;
+            font-size: 1rem;
+            cursor: pointer;
+            border-radius: 8px;
+            transition: all 0.3s;
+        }
+        .tab-btn.active {
+            background: #8b1a1a;
+            color: white;
+        }
+        .tab-btn:not(.active):hover {
+            background: #f0f0f0;
+        }
+        .batch-actions {
+            margin-bottom: 1rem;
+            display: flex;
+            gap: 1rem;
+            align-items: center;
+        }
+        .batch-actions button {
+            background: #6c757d;
+            color: white;
+            border: none;
+            padding: 0.5rem 1rem;
+            border-radius: 8px;
+            cursor: pointer;
+        }
+        .batch-actions button:hover {
+            background: #5a6268;
+        }
+        .card input[type="checkbox"] {
+            width: 20px;
+            height: 20px;
+            margin-right: 1rem;
+            cursor: pointer;
+        }
+        .card-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 0.5rem;
+        }
+        .card-header-left {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        .status-badge {
+            display: inline-block;
+            padding: 0.2rem 0.5rem;
+            border-radius: 4px;
+            font-size: 0.7rem;
+        }
+        .status-pending {
+            background: #ffc107;
+            color: #856404;
+        }
+        .status-approved {
+            background: #28a745;
+            color: white;
+        }
+        .status-rejected {
+            background: #dc3545;
+            color: white;
+        }
+        .time-text {
+            color: #666;
+            font-size: 0.8rem;
+            margin: 0.5rem 0;
+        }
+        .select-all {
+            margin-left: 1rem;
+        }
+    </style>
 </head>
 <body>
     <div class="header">
@@ -14,13 +99,15 @@
         <div class="nav-links">
             <a href="index.html">🏠 首页</a>
             <a href="admin.html">🔐 审核</a>
+            <a href="#" id="logoutBtn">🚪 退出</a>
         </div>
     </div>
 
     <div class="container">
         <div class="detail-card">
-            <h2>📋 待审核补充信息</h2>
+            <h2>📋 审核管理</h2>
             
+            <!-- 登录区域 -->
             <div id="loginArea" style="display: none;">
                 <div class="form-group">
                     <label>管理员密码</label>
@@ -29,8 +116,29 @@
                 </div>
             </div>
 
+            <!-- 审核内容 -->
             <div id="adminContent" style="display: none;">
-                <div id="pendingList"></div>
+                <!-- 标签页 -->
+                <div class="tab-bar">
+                    <button class="tab-btn active" onclick="switchTab('pending')">⏳ 待审核</button>
+                    <button class="tab-btn" onclick="switchTab('history')">📜 已审核历史</button>
+                </div>
+
+                <!-- 待审核区域 -->
+                <div id="pendingArea">
+                    <div class="batch-actions" id="batchActions" style="display: none;">
+                        <span>批量操作：</span>
+                        <button onclick="batchApprove()">✅ 批量通过</button>
+                        <button onclick="batchReject()">❌ 批量拒绝</button>
+                        <button onclick="toggleSelectAll()" id="selectAllBtn">☑️ 全选</button>
+                    </div>
+                    <div id="pendingList"></div>
+                </div>
+
+                <!-- 历史记录区域 -->
+                <div id="historyArea" style="display: none;">
+                    <div id="historyList"></div>
+                </div>
             </div>
         </div>
     </div>
@@ -41,9 +149,22 @@
         const ADMIN_PASSWORD = 'shanxi123';
 
         let supabaseClient;
+        let currentTab = 'pending';
+        let selectedIds = new Set();
 
         async function initSupabase() {
             supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+            // 添加 created_at 字段（如果还没有）
+            await addCreatedAtColumn();
+        }
+
+        async function addCreatedAtColumn() {
+            try {
+                const { error } = await supabaseClient.rpc('add_created_at_column');
+                if (error) console.log('添加字段失败（可能已存在）:', error);
+            } catch (e) {
+                console.log('跳过添加字段');
+            }
         }
 
         function checkLogin() {
@@ -51,12 +172,19 @@
             if (isLoggedIn === 'true') {
                 document.getElementById('loginArea').style.display = 'none';
                 document.getElementById('adminContent').style.display = 'block';
-                loadPendingContributions();
+                loadCurrentTab();
             } else {
                 document.getElementById('loginArea').style.display = 'block';
                 document.getElementById('adminContent').style.display = 'none';
             }
         }
+
+        // 退出登录
+        document.getElementById('logoutBtn')?.addEventListener('click', (e) => {
+            e.preventDefault();
+            localStorage.removeItem('admin_logged_in');
+            checkLogin();
+        });
 
         document.getElementById('loginBtn')?.addEventListener('click', () => {
             const password = document.getElementById('adminPassword').value;
@@ -68,11 +196,35 @@
             }
         });
 
+        function switchTab(tab) {
+            currentTab = tab;
+            document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+            if (tab === 'pending') {
+                document.querySelector('.tab-bar button:first-child').classList.add('active');
+                document.getElementById('pendingArea').style.display = 'block';
+                document.getElementById('historyArea').style.display = 'none';
+                loadPendingContributions();
+            } else {
+                document.querySelector('.tab-bar button:last-child').classList.add('active');
+                document.getElementById('pendingArea').style.display = 'none';
+                document.getElementById('historyArea').style.display = 'block';
+                loadHistoryContributions();
+            }
+        }
+
+        function loadCurrentTab() {
+            if (currentTab === 'pending') {
+                loadPendingContributions();
+            } else {
+                loadHistoryContributions();
+            }
+        }
+
+        // 加载待审核列表
         async function loadPendingContributions() {
-            // 查询所有 pending 记录（按 id 倒序）
             const { data: contributions, error: contribError } = await supabaseClient
                 .from('user_contribution')
-                .select('id, person_id, field_name, new_value, status')
+                .select('id, person_id, field_name, new_value, status, created_at')
                 .eq('status', 'pending')
                 .order('id', { ascending: false });
 
@@ -84,9 +236,12 @@
 
             if (!contributions || contributions.length === 0) {
                 document.getElementById('pendingList').innerHTML = '<div class="loading">暂无待审核内容</div>';
+                document.getElementById('batchActions').style.display = 'none';
                 return;
             }
 
+            document.getElementById('batchActions').style.display = 'flex';
+            
             // 获取人物名字
             const personIds = [...new Set(contributions.map(c => c.person_id))];
             const { data: persons, error: personError } = await supabaseClient
@@ -94,31 +249,162 @@
                 .select('id, name')
                 .in('id', personIds);
 
-            if (personError) {
-                console.error('查询人物失败:', personError);
-            }
-
             const personMap = {};
             if (persons) {
-                persons.forEach(p => {
-                    personMap[p.id] = p.name;
-                });
+                persons.forEach(p => { personMap[p.id] = p.name; });
             }
 
             const container = document.getElementById('pendingList');
             container.innerHTML = contributions.map(item => `
                 <div class="card" style="margin-bottom: 1rem;">
-                    <h3>${personMap[item.person_id] || '未知'} - ${item.field_name}</h3>
+                    <div class="card-header">
+                        <div class="card-header-left">
+                            <input type="checkbox" class="item-checkbox" data-id="${item.id}" onchange="toggleSelect(${item.id})">
+                            <h3 style="margin: 0;">${personMap[item.person_id] || '未知'} - ${item.field_name}</h3>
+                            <span class="status-badge status-pending">待审核</span>
+                        </div>
+                    </div>
                     <p style="margin: 0.5rem 0;"><strong>补充内容：</strong>${escapeHtml(item.new_value)}</p>
+                    <div class="time-text">📅 提交时间：${formatTime(item.created_at)}</div>
                     <div style="margin-top: 1rem; display: flex; gap: 1rem;">
                         <button onclick="approve(${item.id}, ${item.person_id}, '${item.field_name}', '${escapeHtml(item.new_value)}')" style="background: #28a745; color: white; padding: 0.5rem 1rem; border: none; border-radius: 8px; cursor: pointer;">✅ 通过</button>
                         <button onclick="reject(${item.id})" style="background: #dc3545; color: white; padding: 0.5rem 1rem; border: none; border-radius: 8px; cursor: pointer;">❌ 拒绝</button>
                     </div>
                 </div>
             `).join('');
+            
+            selectedIds.clear();
         }
 
-        async function approve(id, personId, fieldName, newValue) {
+        // 加载历史记录
+        async function loadHistoryContributions() {
+            const { data: contributions, error: contribError } = await supabaseClient
+                .from('user_contribution')
+                .select('id, person_id, field_name, new_value, status, created_at')
+                .in('status', ['approved', 'rejected'])
+                .order('id', { ascending: false });
+
+            if (contribError) {
+                console.error('查询失败:', contribError);
+                document.getElementById('historyList').innerHTML = '<div class="loading">加载失败: ' + contribError.message + '</div>';
+                return;
+            }
+
+            if (!contributions || contributions.length === 0) {
+                document.getElementById('historyList').innerHTML = '<div class="loading">暂无历史记录</div>';
+                return;
+            }
+
+            const personIds = [...new Set(contributions.map(c => c.person_id))];
+            const { data: persons, error: personError } = await supabaseClient
+                .from('person')
+                .select('id, name')
+                .in('id', personIds);
+
+            const personMap = {};
+            if (persons) {
+                persons.forEach(p => { personMap[p.id] = p.name; });
+            }
+
+            const container = document.getElementById('historyList');
+            container.innerHTML = contributions.map(item => `
+                <div class="card" style="margin-bottom: 1rem;">
+                    <div class="card-header">
+                        <div class="card-header-left">
+                            <h3 style="margin: 0;">${personMap[item.person_id] || '未知'} - ${item.field_name}</h3>
+                            <span class="status-badge ${item.status === 'approved' ? 'status-approved' : 'status-rejected'}">${item.status === 'approved' ? '已通过' : '已拒绝'}</span>
+                        </div>
+                    </div>
+                    <p style="margin: 0.5rem 0;"><strong>补充内容：</strong>${escapeHtml(item.new_value)}</p>
+                    <div class="time-text">📅 处理时间：${formatTime(item.created_at)}</div>
+                </div>
+            `).join('');
+        }
+
+        // 批量操作
+        function toggleSelect(id) {
+            if (selectedIds.has(id)) {
+                selectedIds.delete(id);
+            } else {
+                selectedIds.add(id);
+            }
+            updateSelectAllButton();
+        }
+
+        function toggleSelectAll() {
+            const checkboxes = document.querySelectorAll('.item-checkbox');
+            const allChecked = Array.from(checkboxes).every(cb => cb.checked);
+            
+            checkboxes.forEach(cb => {
+                cb.checked = !allChecked;
+                const id = parseInt(cb.dataset.id);
+                if (!allChecked) {
+                    selectedIds.add(id);
+                } else {
+                    selectedIds.delete(id);
+                }
+            });
+            
+            updateSelectAllButton();
+        }
+
+        function updateSelectAllButton() {
+            const btn = document.getElementById('selectAllBtn');
+            const checkboxes = document.querySelectorAll('.item-checkbox');
+            if (checkboxes.length === 0) return;
+            
+            const allChecked = Array.from(checkboxes).every(cb => cb.checked);
+            btn.textContent = allChecked ? '⬜ 取消全选' : '☑️ 全选';
+        }
+
+        async function batchApprove() {
+            if (selectedIds.size === 0) {
+                alert('请先选择要审核的项');
+                return;
+            }
+            
+            if (!confirm(`确定要通过 ${selectedIds.size} 条补充信息吗？`)) return;
+            
+            for (const id of selectedIds) {
+                const item = await getContributionById(id);
+                if (item) {
+                    await approve(id, item.person_id, item.field_name, item.new_value, true);
+                }
+            }
+            
+            selectedIds.clear();
+            loadPendingContributions();
+        }
+
+        async function batchReject() {
+            if (selectedIds.size === 0) {
+                alert('请先选择要审核的项');
+                return;
+            }
+            
+            if (!confirm(`确定要拒绝 ${selectedIds.size} 条补充信息吗？`)) return;
+            
+            for (const id of selectedIds) {
+                await reject(id, true);
+            }
+            
+            selectedIds.clear();
+            loadPendingContributions();
+        }
+
+        async function getContributionById(id) {
+            const { data, error } = await supabaseClient
+                .from('user_contribution')
+                .select('person_id, field_name, new_value')
+                .eq('id', id)
+                .single();
+            
+            if (error) return null;
+            return data;
+        }
+
+        // 通过审核
+        async function approve(id, personId, fieldName, newValue, isBatch = false) {
             let updateData = {};
             if (fieldName === '事迹') {
                 updateData = { main_achievement: newValue };
@@ -135,9 +421,9 @@
                 .update(updateData)
                 .eq('id', personId);
 
-            if (updateError) {
+            if (updateError && !isBatch) {
                 alert('更新失败: ' + updateError.message);
-                return;
+                return false;
             }
 
             const { error: contribError } = await supabaseClient
@@ -145,28 +431,45 @@
                 .update({ status: 'approved' })
                 .eq('id', id);
 
-            if (contribError) {
+            if (contribError && !isBatch) {
                 alert('状态更新失败: ' + contribError.message);
-                return;
+                return false;
             }
 
-            alert('审核通过！');
-            loadPendingContributions();
+            if (!isBatch) {
+                alert('审核通过！');
+                loadPendingContributions();
+            }
+            return true;
         }
 
-        async function reject(id) {
+        // 拒绝审核
+        async function reject(id, isBatch = false) {
             const { error } = await supabaseClient
                 .from('user_contribution')
                 .update({ status: 'rejected' })
                 .eq('id', id);
 
-            if (error) {
+            if (error && !isBatch) {
                 alert('操作失败: ' + error.message);
-                return;
+                return false;
             }
 
-            alert('已拒绝');
-            loadPendingContributions();
+            if (!isBatch) {
+                alert('已拒绝');
+                loadPendingContributions();
+            }
+            return true;
+        }
+
+        function formatTime(timeStr) {
+            if (!timeStr) return '时间未知';
+            try {
+                const date = new Date(timeStr);
+                return date.toLocaleString('zh-CN');
+            } catch {
+                return timeStr;
+            }
         }
 
         function escapeHtml(str) {
