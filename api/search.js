@@ -1,6 +1,6 @@
 // API: 搜索山西名人（支持精确匹配）
 
-const { createClient } = require('@supabase/supabase-js');
+import { createClient } from '@supabase/supabase-js';
 
 const supabase = createClient(
     process.env.SUPABASE_URL,
