@@ -244,6 +244,27 @@
     console.log('开始审核:', { id, personId, fieldName, newValue, createdAt });
     
     try {
+        // 先检查这条记录是否已经被审核过
+        const { data: checkRecord, error: checkError } = await supabaseClient
+            .from('user_contribution')
+            .select('status')
+            .eq('id', id)
+            .single();
+        
+        if (checkError) {
+            console.error('检查状态失败:', checkError);
+            alert('检查状态失败: ' + checkError.message);
+            return;
+        }
+        
+        if (checkRecord.status !== 'pending') {
+            alert('这条记录已经被审核过了！');
+            await loadPendingContributions();
+            await loadHistoryContributions();
+            return;
+        }
+        
+        // 获取当前主要事迹
         const { data: currentPerson, error: fetchError } = await supabaseClient
             .from('person')
             .select('main_achievement')
@@ -259,12 +280,10 @@
         const currentText = currentPerson?.main_achievement || '';
         const timeStr = formatTime(createdAt);
         
-        // 使用 <br> 实现换行（注意：需要转义存储，显示时会被解析）
-        const newEntry = '<br><br><br>📝 【网友补充】<br>' + newValue + '<br>📅 补充时间：' + timeStr;
+        const newEntry = '\n\n\n📝 【网友补充】\n' + newValue + '\n📅 补充时间：' + timeStr;
         const newMainAchievement = currentText + newEntry;
         
-        console.log('更新后的事迹:', newMainAchievement);
-        
+        // 更新 person 表
         const { error: updateError } = await supabaseClient
             .from('person')
             .update({ main_achievement: newMainAchievement })
@@ -276,6 +295,7 @@
             return;
         }
         
+        // 更新补充表状态为 approved
         const { error: contribError } = await supabaseClient
             .from('user_contribution')
             .update({ status: 'approved' })
@@ -288,6 +308,8 @@
         }
         
         alert('审核通过！');
+        
+        // 强制刷新两个列表
         await loadPendingContributions();
         await loadHistoryContributions();
         
