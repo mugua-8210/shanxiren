@@ -35,6 +35,7 @@
             display: flex;
             gap: 1rem;
             align-items: center;
+            flex-wrap: wrap;
         }
         .batch-actions button {
             background: #6c757d;
@@ -58,11 +59,13 @@
             align-items: center;
             justify-content: space-between;
             margin-bottom: 0.5rem;
+            flex-wrap: wrap;
         }
         .card-header-left {
             display: flex;
             align-items: center;
             gap: 0.5rem;
+            flex-wrap: wrap;
         }
         .status-badge {
             display: inline-block;
@@ -90,6 +93,11 @@
         .select-all {
             margin-left: 1rem;
         }
+        .contributor-text {
+            color: #888;
+            font-size: 0.75rem;
+            margin-top: 0.25rem;
+        }
     </style>
 </head>
 <body>
@@ -107,7 +115,6 @@
         <div class="detail-card">
             <h2>📋 审核管理</h2>
             
-            <!-- 登录区域 -->
             <div id="loginArea" style="display: none;">
                 <div class="form-group">
                     <label>管理员密码</label>
@@ -116,15 +123,12 @@
                 </div>
             </div>
 
-            <!-- 审核内容 -->
             <div id="adminContent" style="display: none;">
-                <!-- 标签页 -->
                 <div class="tab-bar">
                     <button class="tab-btn active" onclick="switchTab('pending')">⏳ 待审核</button>
                     <button class="tab-btn" onclick="switchTab('history')">📜 已审核历史</button>
                 </div>
 
-                <!-- 待审核区域 -->
                 <div id="pendingArea">
                     <div class="batch-actions" id="batchActions" style="display: none;">
                         <span>批量操作：</span>
@@ -135,7 +139,6 @@
                     <div id="pendingList"></div>
                 </div>
 
-                <!-- 历史记录区域 -->
                 <div id="historyArea" style="display: none;">
                     <div id="historyList"></div>
                 </div>
@@ -154,17 +157,6 @@
 
         async function initSupabase() {
             supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-            // 添加 created_at 字段（如果还没有）
-            await addCreatedAtColumn();
-        }
-
-        async function addCreatedAtColumn() {
-            try {
-                const { error } = await supabaseClient.rpc('add_created_at_column');
-                if (error) console.log('添加字段失败（可能已存在）:', error);
-            } catch (e) {
-                console.log('跳过添加字段');
-            }
         }
 
         function checkLogin() {
@@ -179,7 +171,6 @@
             }
         }
 
-        // 退出登录
         document.getElementById('logoutBtn')?.addEventListener('click', (e) => {
             e.preventDefault();
             localStorage.removeItem('admin_logged_in');
@@ -220,13 +211,12 @@
             }
         }
 
-        // 加载待审核列表
         async function loadPendingContributions() {
             const { data: contributions, error: contribError } = await supabaseClient
                 .from('user_contribution')
                 .select('id, person_id, field_name, new_value, status, created_at')
                 .eq('status', 'pending')
-                .order('id', { ascending: false });
+                .order('created_at', { ascending: false });
 
             if (contribError) {
                 console.error('查询失败:', contribError);
@@ -242,7 +232,6 @@
 
             document.getElementById('batchActions').style.display = 'flex';
             
-            // 获取人物名字
             const personIds = [...new Set(contributions.map(c => c.person_id))];
             const { data: persons, error: personError } = await supabaseClient
                 .from('person')
@@ -274,15 +263,15 @@
             `).join('');
             
             selectedIds.clear();
+            updateSelectAllButton();
         }
 
-        // 加载历史记录
         async function loadHistoryContributions() {
             const { data: contributions, error: contribError } = await supabaseClient
                 .from('user_contribution')
                 .select('id, person_id, field_name, new_value, status, created_at')
                 .in('status', ['approved', 'rejected'])
-                .order('id', { ascending: false });
+                .order('created_at', { ascending: false });
 
             if (contribError) {
                 console.error('查询失败:', contribError);
@@ -316,12 +305,11 @@
                         </div>
                     </div>
                     <p style="margin: 0.5rem 0;"><strong>补充内容：</strong>${escapeHtml(item.new_value)}</p>
-                    <div class="time-text">📅 处理时间：${formatTime(item.created_at)}</div>
+                    <div class="time-text">📅 提交时间：${formatTime(item.created_at)}</div>
                 </div>
             `).join('');
         }
 
-        // 批量操作
         function toggleSelect(id) {
             if (selectedIds.has(id)) {
                 selectedIds.delete(id);
@@ -333,6 +321,8 @@
 
         function toggleSelectAll() {
             const checkboxes = document.querySelectorAll('.item-checkbox');
+            if (checkboxes.length === 0) return;
+            
             const allChecked = Array.from(checkboxes).every(cb => cb.checked);
             
             checkboxes.forEach(cb => {
@@ -373,7 +363,8 @@
             }
             
             selectedIds.clear();
-            loadPendingContributions();
+            await loadPendingContributions();
+            alert(`已通过 ${selectedIds.size} 条补充信息`);
         }
 
         async function batchReject() {
@@ -389,7 +380,8 @@
             }
             
             selectedIds.clear();
-            loadPendingContributions();
+            await loadPendingContributions();
+            alert(`已拒绝 ${selectedIds.size} 条补充信息`);
         }
 
         async function getContributionById(id) {
@@ -403,15 +395,18 @@
             return data;
         }
 
-        // 通过审核
         async function approve(id, personId, fieldName, newValue, isBatch = false) {
             let updateData = {};
             if (fieldName === '事迹') {
-                updateData = { main_achievement: newValue };
-            } else if (fieldName === '家族') {
-                updateData = { family: newValue };
-            } else if (fieldName === '著作') {
-                updateData = { works: newValue };
+                const currentPerson = await supabaseClient
+                    .from('person')
+                    .select('main_achievement')
+                    .eq('id', personId)
+                    .single();
+                
+                const currentText = currentPerson.data?.main_achievement || '';
+                // 追加新内容，不覆盖
+                updateData = { main_achievement: currentText + '\n\n【网友补充】' + newValue };
             } else {
                 updateData = { extra_info: newValue };
             }
@@ -438,12 +433,11 @@
 
             if (!isBatch) {
                 alert('审核通过！');
-                loadPendingContributions();
+                await loadPendingContributions();
             }
             return true;
         }
 
-        // 拒绝审核
         async function reject(id, isBatch = false) {
             const { error } = await supabaseClient
                 .from('user_contribution')
@@ -457,7 +451,7 @@
 
             if (!isBatch) {
                 alert('已拒绝');
-                loadPendingContributions();
+                await loadPendingContributions();
             }
             return true;
         }
