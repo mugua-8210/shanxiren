@@ -1,5 +1,3 @@
-// API: AI 生成名人介绍
-
 const { createClient } = require('@supabase/supabase-js');
 
 const supabase = createClient(
@@ -29,7 +27,7 @@ async function callDeepSeek(prompt) {
     return data.choices[0].message.content;
 }
 
-module.exports = async (req, res) => {
+export default async function handler(req, res) {
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
 
@@ -46,13 +44,13 @@ module.exports = async (req, res) => {
         }
 
         // 获取人物信息
-        const { data: person } = await supabase
+        const { data: person, error: personError } = await supabase
             .from('person')
             .select('name, dynasty, county, main_achievement')
             .eq('id', pid)
             .single();
 
-        if (!person) {
+        if (personError || !person) {
             return res.status(404).json({ success: false, error: '人物不存在' });
         }
 
@@ -80,4 +78,4 @@ module.exports = async (req, res) => {
         console.error('AI生成失败:', error);
         return res.status(500).json({ success: false, error: error.message });
     }
-};
+}
