@@ -244,7 +244,7 @@
     console.log('开始审核:', { id, personId, fieldName, newValue, createdAt });
     
     try {
-        // 先检查这条记录是否已经被审核过
+        // 先检查是否已经被审核
         const { data: checkRecord, error: checkError } = await supabaseClient
             .from('user_contribution')
             .select('status')
@@ -295,11 +295,10 @@
             return;
         }
         
-        // 更新补充表状态为 approved
-        const { error: contribError } = await supabaseClient
-            .from('user_contribution')
-            .update({ status: 'approved' })
-            .eq('id', id);
+        // 【关键修改】使用 RPC 调用 SQL 函数更新状态
+        const { error: contribError } = await supabaseClient.rpc('approve_contribution', {
+            contribution_id: id
+        });
         
         if (contribError) {
             console.error('状态更新失败:', contribError);
@@ -309,7 +308,7 @@
         
         alert('审核通过！');
         
-        // 强制刷新两个列表
+        // 刷新列表
         await loadPendingContributions();
         await loadHistoryContributions();
         
