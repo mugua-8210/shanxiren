@@ -1,4 +1,4 @@
-// API: 网友补充信息
+// API: 网友补充信息（保存到待审核表）
 
 import { createClient } from '@supabase/supabase-js';
 
@@ -8,7 +8,6 @@ const supabase = createClient(
 );
 
 export default async function handler(req, res) {
-    // 设置 CORS 头
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
     res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
@@ -28,7 +27,7 @@ export default async function handler(req, res) {
             return res.status(400).json({ success: false, error: '缺少必要参数' });
         }
 
-        // 插入补充信息到数据库
+        // 保存到补充表，状态为 pending
         const { error } = await supabase
             .from('user_contribution')
             .insert([
@@ -45,7 +44,10 @@ export default async function handler(req, res) {
             return res.status(500).json({ success: false, error: error.message });
         }
 
-        return res.status(200).json({ success: true, message: '补充成功' });
+        return res.status(200).json({ 
+            success: true, 
+            message: '补充信息已提交，等待管理员审核。'
+        });
 
     } catch (error) {
         console.error('API错误:', error);
