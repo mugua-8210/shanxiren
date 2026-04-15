@@ -70,8 +70,10 @@
             }
         });
 
-        // 加载待审核列表（修改版：分两次查询）
+        // 加载待审核列表（修复排序语法）
         async function loadPendingContributions() {
+            console.log('开始加载待审核列表...');
+            
             // 第一次查询：获取所有 pending 记录
             const { data: contributions, error: contribError } = await supabaseClient
                 .from('user_contribution')
@@ -80,17 +82,19 @@
                 .order('created_at', { ascending: false });
 
             if (contribError) {
-                console.error('加载失败:', contribError);
-                document.getElementById('pendingList').innerHTML = '<div class="loading">加载失败</div>';
+                console.error('查询失败:', contribError);
+                document.getElementById('pendingList').innerHTML = '<div class="loading">加载失败: ' + contribError.message + '</div>';
                 return;
             }
+
+            console.log('查询到', contributions?.length || 0, '条记录');
 
             if (!contributions || contributions.length === 0) {
                 document.getElementById('pendingList').innerHTML = '<div class="loading">暂无待审核内容</div>';
                 return;
             }
 
-            // 第二次查询：获取每个人物的名字
+            // 获取人物名字
             const personIds = [...new Set(contributions.map(c => c.person_id))];
             const { data: persons, error: personError } = await supabaseClient
                 .from('person')
@@ -98,10 +102,9 @@
                 .in('id', personIds);
 
             if (personError) {
-                console.error('加载人物失败:', personError);
+                console.error('查询人物失败:', personError);
             }
 
-            // 创建 id → name 的映射
             const personMap = {};
             if (persons) {
                 persons.forEach(p => {
