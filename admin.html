@@ -21,7 +21,6 @@
         <div class="detail-card">
             <h2>📋 待审核补充信息</h2>
             
-            <!-- 登录区域 -->
             <div id="loginArea" style="display: none;">
                 <div class="form-group">
                     <label>管理员密码</label>
@@ -30,7 +29,6 @@
                 </div>
             </div>
 
-            <!-- 审核列表 -->
             <div id="adminContent" style="display: none;">
                 <div id="pendingList"></div>
             </div>
@@ -70,24 +68,19 @@
             }
         });
 
-        // 加载待审核列表（修复排序语法）
         async function loadPendingContributions() {
-            console.log('开始加载待审核列表...');
-            
-            // 第一次查询：获取所有 pending 记录
+            // 查询所有 pending 记录（按 id 倒序）
             const { data: contributions, error: contribError } = await supabaseClient
                 .from('user_contribution')
-                .select('id, person_id, field_name, new_value, created_at, status')
+                .select('id, person_id, field_name, new_value, status')
                 .eq('status', 'pending')
-                .order('created_at', { ascending: false });
+                .order('id', { ascending: false });
 
             if (contribError) {
                 console.error('查询失败:', contribError);
                 document.getElementById('pendingList').innerHTML = '<div class="loading">加载失败: ' + contribError.message + '</div>';
                 return;
             }
-
-            console.log('查询到', contributions?.length || 0, '条记录');
 
             if (!contributions || contributions.length === 0) {
                 document.getElementById('pendingList').innerHTML = '<div class="loading">暂无待审核内容</div>';
@@ -117,7 +110,6 @@
                 <div class="card" style="margin-bottom: 1rem;">
                     <h3>${personMap[item.person_id] || '未知'} - ${item.field_name}</h3>
                     <p style="margin: 0.5rem 0;"><strong>补充内容：</strong>${escapeHtml(item.new_value)}</p>
-                    <p style="color: #666; font-size: 0.8rem;">提交时间：${new Date(item.created_at).toLocaleString()}</p>
                     <div style="margin-top: 1rem; display: flex; gap: 1rem;">
                         <button onclick="approve(${item.id}, ${item.person_id}, '${item.field_name}', '${escapeHtml(item.new_value)}')" style="background: #28a745; color: white; padding: 0.5rem 1rem; border: none; border-radius: 8px; cursor: pointer;">✅ 通过</button>
                         <button onclick="reject(${item.id})" style="background: #dc3545; color: white; padding: 0.5rem 1rem; border: none; border-radius: 8px; cursor: pointer;">❌ 拒绝</button>
@@ -126,7 +118,6 @@
             `).join('');
         }
 
-        // 通过审核
         async function approve(id, personId, fieldName, newValue) {
             let updateData = {};
             if (fieldName === '事迹') {
@@ -163,7 +154,6 @@
             loadPendingContributions();
         }
 
-        // 拒绝审核
         async function reject(id) {
             const { error } = await supabaseClient
                 .from('user_contribution')
