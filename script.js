@@ -236,7 +236,7 @@ function renderPersonDetail(person) {
             </div>
             <div class="info-row">
                 <div class="info-label">主要事迹</div>
-                <div class="info-value">${escapeHtml(person.main_achievement || '暂无')}</div>
+                <div class="info-value">${person.main_achievement ? person.main_achievement.replace(/<br>/g, '<br>') : '暂无'}</div>
             </div>
         </div>
         <div id="aiContent"></div>
