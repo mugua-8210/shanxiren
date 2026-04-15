@@ -301,7 +301,7 @@ async function handleContribute(e) {
     submitBtn.disabled = true;
 
     try {
-        const response = await fetch('/api/contribute.js', {
+        const response = await fetch('/api/contribute', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ personId, fieldName, newValue })
@@ -366,7 +366,6 @@ function showMessage(msg, type) {
 
 // ========== 山西地图功能 ==========
 
-// 根据地区搜索名人（支持市、县智能匹配）
 // 根据地区搜索名人（精确匹配市或县）
 async function searchByRegion(regionName) {
     const grid = document.getElementById('figuresGrid');
