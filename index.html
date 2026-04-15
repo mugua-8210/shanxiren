@@ -1,10 +1,38 @@
 <!DOCTYPE html>
-<html>
+<html lang="zh-CN">
 <head>
-    <title>山西名人录</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>山西名人录 - 让世界看见山西</title>
+    <link rel="stylesheet" href="style.css">
+    <!-- 引入 Supabase 客户端 -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
 <body>
-    <h1>山西名人录</h1>
-    <p>正在建设中...</p>
+    <div class="header">
+        <h1><a href="index.html">🏔️ 山西名人录</a></h1>
+        <p>让世界看见山西 · 三晋儿女的骄傲</p>
+        <div class="nav-links">
+            <a href="index.html">🏠 首页</a>
+            <a href="add.html">➕ 添加名人</a>
+        </div>
+    </div>
+
+    <div class="container">
+        <!-- 搜索栏 -->
+        <div class="search-bar">
+            <input type="text" id="searchKeyword" placeholder="搜索人名..." autocomplete="off">
+            <input type="text" id="searchDynasty" placeholder="朝代 (如: 唐朝)" autocomplete="off">
+            <input type="text" id="searchCounty" placeholder="地区 (如: 太原)" autocomplete="off">
+            <button id="searchBtn">🔍 搜索</button>
+        </div>
+
+        <!-- 名人列表 -->
+        <div id="figuresGrid" class="grid">
+            <div class="loading">加载中...</div>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
 </body>
 </html>
