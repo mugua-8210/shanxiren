@@ -40,7 +40,7 @@
     <script>
         const SUPABASE_URL = 'https://ojibgfhavlhsqqnkfcte.supabase.co';
         const SUPABASE_ANON_KEY = 'sb_publishable_auyTRPEo0Japh-4ijdS7Dg_hcaFhNeO';
-        const ADMIN_PASSWORD = 'shanxi123';  // 管理员密码，你可以改成自己的
+        const ADMIN_PASSWORD = 'shanxi123';
 
         let supabaseClient;
 
@@ -48,7 +48,6 @@
             supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
         }
 
-        // 检查登录状态
         function checkLogin() {
             const isLoggedIn = localStorage.getItem('admin_logged_in');
             if (isLoggedIn === 'true') {
@@ -61,7 +60,6 @@
             }
         }
 
-        // 登录
         document.getElementById('loginBtn')?.addEventListener('click', () => {
             const password = document.getElementById('adminPassword').value;
             if (password === ADMIN_PASSWORD) {
@@ -72,35 +70,49 @@
             }
         });
 
-        // 加载待审核列表
+        // 加载待审核列表（修改版：分两次查询）
         async function loadPendingContributions() {
-            const { data, error } = await supabaseClient
+            // 第一次查询：获取所有 pending 记录
+            const { data: contributions, error: contribError } = await supabaseClient
                 .from('user_contribution')
-                .select(`
-                    id,
-                    person_id,
-                    field_name,
-                    new_value,
-                    created_at,
-                    person:person_id (name)
-                `)
+                .select('id, person_id, field_name, new_value, created_at, status')
                 .eq('status', 'pending')
                 .order('created_at', { ascending: false });
 
-            if (error) {
-                console.error('加载失败:', error);
+            if (contribError) {
+                console.error('加载失败:', contribError);
+                document.getElementById('pendingList').innerHTML = '<div class="loading">加载失败</div>';
                 return;
+            }
+
+            if (!contributions || contributions.length === 0) {
+                document.getElementById('pendingList').innerHTML = '<div class="loading">暂无待审核内容</div>';
+                return;
+            }
+
+            // 第二次查询：获取每个人物的名字
+            const personIds = [...new Set(contributions.map(c => c.person_id))];
+            const { data: persons, error: personError } = await supabaseClient
+                .from('person')
+                .select('id, name')
+                .in('id', personIds);
+
+            if (personError) {
+                console.error('加载人物失败:', personError);
+            }
+
+            // 创建 id → name 的映射
+            const personMap = {};
+            if (persons) {
+                persons.forEach(p => {
+                    personMap[p.id] = p.name;
+                });
             }
 
             const container = document.getElementById('pendingList');
-            if (!data || data.length === 0) {
-                container.innerHTML = '<div class="loading">暂无待审核内容</div>';
-                return;
-            }
-
-            container.innerHTML = data.map(item => `
+            container.innerHTML = contributions.map(item => `
                 <div class="card" style="margin-bottom: 1rem;">
-                    <h3>${item.person?.name || '未知'} - ${item.field_name}</h3>
+                    <h3>${personMap[item.person_id] || '未知'} - ${item.field_name}</h3>
                     <p style="margin: 0.5rem 0;"><strong>补充内容：</strong>${escapeHtml(item.new_value)}</p>
                     <p style="color: #666; font-size: 0.8rem;">提交时间：${new Date(item.created_at).toLocaleString()}</p>
                     <div style="margin-top: 1rem; display: flex; gap: 1rem;">
@@ -113,7 +125,6 @@
 
         // 通过审核
         async function approve(id, personId, fieldName, newValue) {
-            // 1. 更新 person 表
             let updateData = {};
             if (fieldName === '事迹') {
                 updateData = { main_achievement: newValue };
@@ -135,7 +146,6 @@
                 return;
             }
 
-            // 2. 更新补充表状态
             const { error: contribError } = await supabaseClient
                 .from('user_contribution')
                 .update({ status: 'approved' })
