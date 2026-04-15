@@ -367,6 +367,7 @@ function showMessage(msg, type) {
 // ========== 山西地图功能 ==========
 
 // 根据地区搜索名人（支持市、县智能匹配）
+// 根据地区搜索名人（精确匹配市或县）
 async function searchByRegion(regionName) {
     const grid = document.getElementById('figuresGrid');
     if (!grid) return;
@@ -379,22 +380,23 @@ async function searchByRegion(regionName) {
         
         // 判断点击的是市还是县
         if (cityToCounties[regionName]) {
-            // 点击的是市：搜索 city 字段
+            // 点击的是市：精确搜索 city 字段
             searchCity = regionName;
         } else if (countyToCity[regionName]) {
-            // 点击的是县/区：搜索 county 字段
+            // 点击的是县/区：精确搜索 county 字段
             searchCounty = regionName;
-            searchCity = countyToCity[regionName];
         } else {
-            // 未知地区，尝试模糊匹配
+            // 未知地区，按原词精确匹配
             searchCounty = regionName;
         }
         
         let url;
         if (searchCounty) {
-            url = `/api/search?county=${encodeURIComponent(searchCounty)}`;
+            // 按县/区精确匹配
+            url = `/api/search?county_exact=${encodeURIComponent(searchCounty)}`;
         } else {
-            url = `/api/search?city=${encodeURIComponent(searchCity)}`;
+            // 按市精确匹配
+            url = `/api/search?city_exact=${encodeURIComponent(searchCity)}`;
         }
         
         const response = await fetch(url);
