@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>管理员审核 - 山西名人录</title>
+    <link rel="stylesheet" href="style.css">
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body>
+    <div class="header">
+        <h1><a href="index.html">🏔️ 山西名人录</a></h1>
+        <p>管理员审核后台</p>
+        <div class="nav-links">
+            <a href="index.html">🏠 首页</a>
+            <a href="admin.html">🔐 审核</a>
+        </div>
+    </div>
+
+    <div class="container">
+        <div class="detail-card">
+            <h2>📋 待审核补充信息</h2>
+            
+            <!-- 登录区域 -->
+            <div id="loginArea" style="display: none;">
+                <div class="form-group">
+                    <label>管理员密码</label>
+                    <input type="password" id="adminPassword" placeholder="输入密码">
+                    <button id="loginBtn" class="btn-submit" style="margin-top: 1rem;">登录</button>
+                </div>
+            </div>
+
+            <!-- 审核列表 -->
+            <div id="adminContent" style="display: none;">
+                <div id="pendingList"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const SUPABASE_URL = 'https://ojibgfhavlhsqqnkfcte.supabase.co';
+        const SUPABASE_ANON_KEY = 'sb_publishable_auyTRPEo0Japh-4ijdS7Dg_hcaFhNeO';
+        const ADMIN_PASSWORD = 'shanxi123';  // 管理员密码，你可以改成自己的
+
+        let supabaseClient;
+
+        async function initSupabase() {
+            supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+        }
+
+        // 检查登录状态
+        function checkLogin() {
+            const isLoggedIn = localStorage.getItem('admin_logged_in');
+            if (isLoggedIn === 'true') {
+                document.getElementById('loginArea').style.display = 'none';
+                document.getElementById('adminContent').style.display = 'block';
+                loadPendingContributions();
+            } else {
+                document.getElementById('loginArea').style.display = 'block';
+                document.getElementById('adminContent').style.display = 'none';
+            }
+        }
+
+        // 登录
+        document.getElementById('loginBtn')?.addEventListener('click', () => {
+            const password = document.getElementById('adminPassword').value;
+            if (password === ADMIN_PASSWORD) {
+                localStorage.setItem('admin_logged_in', 'true');
+                checkLogin();
+            } else {
+                alert('密码错误');
+            }
+        });
+
+        // 加载待审核列表
+        async function loadPendingContributions() {
+            const { data, error } = await supabaseClient
+                .from('user_contribution')
+                .select(`
+                    id,
+                    person_id,
+                    field_name,
+                    new_value,
+                    created_at,
+                    person:person_id (name)
+                `)
+                .eq('status', 'pending')
+                .order('created_at', { ascending: false });
+
+            if (error) {
+                console.error('加载失败:', error);
+                return;
+            }
+
+            const container = document.getElementById('pendingList');
+            if (!data || data.length === 0) {
+                container.innerHTML = '<div class="loading">暂无待审核内容</div>';
+                return;
+            }
+
+            container.innerHTML = data.map(item => `
+                <div class="card" style="margin-bottom: 1rem;">
+                    <h3>${item.person?.name || '未知'} - ${item.field_name}</h3>
+                    <p style="margin: 0.5rem 0;"><strong>补充内容：</strong>${escapeHtml(item.new_value)}</p>
+                    <p style="color: #666; font-size: 0.8rem;">提交时间：${new Date(item.created_at).toLocaleString()}</p>
+                    <div style="margin-top: 1rem; display: flex; gap: 1rem;">
+                        <button onclick="approve(${item.id}, ${item.person_id}, '${item.field_name}', '${escapeHtml(item.new_value)}')" style="background: #28a745; color: white; padding: 0.5rem 1rem; border: none; border-radius: 8px; cursor: pointer;">✅ 通过</button>
+                        <button onclick="reject(${item.id})" style="background: #dc3545; color: white; padding: 0.5rem 1rem; border: none; border-radius: 8px; cursor: pointer;">❌ 拒绝</button>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        // 通过审核
+        async function approve(id, personId, fieldName, newValue) {
+            // 1. 更新 person 表
+            let updateData = {};
+            if (fieldName === '事迹') {
+                updateData = { main_achievement: newValue };
+            } else if (fieldName === '家族') {
+                updateData = { family: newValue };
+            } else if (fieldName === '著作') {
+                updateData = { works: newValue };
+            } else {
+                updateData = { extra_info: newValue };
+            }
+
+            const { error: updateError } = await supabaseClient
+                .from('person')
+                .update(updateData)
+                .eq('id', personId);
+
+            if (updateError) {
+                alert('更新失败: ' + updateError.message);
+                return;
+            }
+
+            // 2. 更新补充表状态
+            const { error: contribError } = await supabaseClient
+                .from('user_contribution')
+                .update({ status: 'approved' })
+                .eq('id', id);
+
+            if (contribError) {
+                alert('状态更新失败: ' + contribError.message);
+                return;
+            }
+
+            alert('审核通过！');
+            loadPendingContributions();
+        }
+
+        // 拒绝审核
+        async function reject(id) {
+            const { error } = await supabaseClient
+                .from('user_contribution')
+                .update({ status: 'rejected' })
+                .eq('id', id);
+
+            if (error) {
+                alert('操作失败: ' + error.message);
+                return;
+            }
+
+            alert('已拒绝');
+            loadPendingContributions();
+        }
+
+        function escapeHtml(str) {
+            if (!str) return '';
+            return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+        }
+
+        initSupabase();
+        checkLogin();
+    </script>
+</body>
+</html>
