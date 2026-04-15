@@ -277,3 +277,8 @@ body {
         margin-bottom: 0.25rem;
     }
 }
+.info-value {
+    white-space: pre-wrap;
+    word-wrap: break-word;
+    line-height: 1.6;
+}
