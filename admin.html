@@ -241,60 +241,61 @@
         }
 
         async function approve(id, personId, fieldName, newValue, createdAt) {
-            console.log('开始审核:', { id, personId, fieldName, newValue, createdAt });
-            
-            try {
-                const { data: currentPerson, error: fetchError } = await supabaseClient
-                    .from('person')
-                    .select('main_achievement')
-                    .eq('id', personId)
-                    .single();
-                
-                if (fetchError) {
-                    console.error('获取失败:', fetchError);
-                    alert('获取失败: ' + fetchError.message);
-                    return;
-                }
-                
-                const currentText = currentPerson?.main_achievement || '';
-                const timeStr = formatTime(createdAt);
-                
-                const newEntry = '\n\n\n📝 【网友补充】\n' + newValue + '\n📅 补充时间：' + timeStr;
-                const newMainAchievement = currentText + newEntry;
-                
-                console.log('更新后的事迹:', newMainAchievement);
-                
-                const { error: updateError } = await supabaseClient
-                    .from('person')
-                    .update({ main_achievement: newMainAchievement })
-                    .eq('id', personId);
-                
-                if (updateError) {
-                    console.error('更新失败:', updateError);
-                    alert('更新失败: ' + updateError.message);
-                    return;
-                }
-                
-                const { error: contribError } = await supabaseClient
-                    .from('user_contribution')
-                    .update({ status: 'approved' })
-                    .eq('id', id);
-                
-                if (contribError) {
-                    console.error('状态更新失败:', contribError);
-                    alert('状态更新失败: ' + contribError.message);
-                    return;
-                }
-                
-                alert('审核通过！');
-                await loadPendingContributions();
-                await loadHistoryContributions();
-                
-            } catch (err) {
-                console.error('审核出错:', err);
-                alert('审核出错: ' + err.message);
-            }
+    console.log('开始审核:', { id, personId, fieldName, newValue, createdAt });
+    
+    try {
+        const { data: currentPerson, error: fetchError } = await supabaseClient
+            .from('person')
+            .select('main_achievement')
+            .eq('id', personId)
+            .single();
+        
+        if (fetchError) {
+            console.error('获取失败:', fetchError);
+            alert('获取失败: ' + fetchError.message);
+            return;
         }
+        
+        const currentText = currentPerson?.main_achievement || '';
+        const timeStr = formatTime(createdAt);
+        
+        // 使用 <br> 实现换行（注意：需要转义存储，显示时会被解析）
+        const newEntry = '<br><br><br>📝 【网友补充】<br>' + newValue + '<br>📅 补充时间：' + timeStr;
+        const newMainAchievement = currentText + newEntry;
+        
+        console.log('更新后的事迹:', newMainAchievement);
+        
+        const { error: updateError } = await supabaseClient
+            .from('person')
+            .update({ main_achievement: newMainAchievement })
+            .eq('id', personId);
+        
+        if (updateError) {
+            console.error('更新失败:', updateError);
+            alert('更新失败: ' + updateError.message);
+            return;
+        }
+        
+        const { error: contribError } = await supabaseClient
+            .from('user_contribution')
+            .update({ status: 'approved' })
+            .eq('id', id);
+        
+        if (contribError) {
+            console.error('状态更新失败:', contribError);
+            alert('状态更新失败: ' + contribError.message);
+            return;
+        }
+        
+        alert('审核通过！');
+        await loadPendingContributions();
+        await loadHistoryContributions();
+        
+    } catch (err) {
+        console.error('审核出错:', err);
+        alert('审核出错: ' + err.message);
+    }
+}
 
         async function reject(id) {
             const { error } = await supabaseClient
