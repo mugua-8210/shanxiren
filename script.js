@@ -200,7 +200,6 @@ async function loadPersonDetail() {
         if (result.success && result.data) {
             renderPersonDetail(result.data);
             loadAIContent(personId);
-            loadApprovedContributions(personId);  // 新增：加载已审核的补充
         } else {
             document.getElementById('detailContent').innerHTML = '<div class="loading">未找到该名人信息</div>';
         }
@@ -208,6 +207,13 @@ async function loadPersonDetail() {
         console.error('加载详情失败:', error);
         document.getElementById('detailContent').innerHTML = '<div class="loading">加载失败，请刷新重试</div>';
     }
+}
+
+// 格式化主要事迹（把换行符转成 <br>）
+function formatMainAchievement(text) {
+    if (!text) return '暂无';
+    let escaped = text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    return escaped.replace(/\n/g, '<br>');
 }
 
 // 渲染名人详情
@@ -236,48 +242,13 @@ function renderPersonDetail(person) {
             </div>
             <div class="info-row">
                 <div class="info-label">主要事迹</div>
-                <div class="info-value">${person.main_achievement ? person.main_achievement.replace(/<br>/g, '<br>') : '暂无'}</div>
+                <div class="info-value">${formatMainAchievement(person.main_achievement)}</div>
             </div>
         </div>
         <div id="aiContent"></div>
-        <div id="contributionsList"></div>
     `;
 
     document.title = `${person.name} - 山西名人录`;
-}
-
-// 加载已审核的补充信息
-async function loadApprovedContributions(personId) {
-    if (!supabaseClient) return;
-    
-    const { data, error } = await supabaseClient
-        .from('user_contribution')
-        .select('field_name, new_value, created_at')
-        .eq('person_id', parseInt(personId))
-        .eq('status', 'approved')
-        .order('created_at', { ascending: false });
-
-    if (error || !data || data.length === 0) return;
-
-    const container = document.getElementById('contributionsList');
-    if (!container) return;
-
-    container.innerHTML = `
-        <div class="detail-card">
-            <h3>📝 网友补充</h3>
-            ${data.map(item => `
-                <div class="info-row" style="margin-bottom: 1rem; border-bottom: 1px solid #eee; padding-bottom: 0.75rem;">
-                    <div class="info-label" style="font-weight: 600;">${escapeHtml(item.field_name)}</div>
-                    <div class="info-value">
-                        <div style="white-space: pre-wrap;">${escapeHtml(item.new_value)}</div>
-                        <div class="contributor-text" style="color: #888; font-size: 0.75rem; margin-top: 0.5rem;">
-                            📅 网友补充于：${new Date(item.created_at).toLocaleString()}
-                        </div>
-                    </div>
-                </div>
-            `).join('')}
-        </div>
-    `;
 }
 
 // 加载 AI 生成的内容
