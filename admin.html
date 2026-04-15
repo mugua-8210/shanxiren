@@ -244,27 +244,6 @@
     console.log('开始审核:', { id, personId, fieldName, newValue, createdAt });
     
     try {
-        // 先检查是否已经被审核
-        const { data: checkRecord, error: checkError } = await supabaseClient
-            .from('user_contribution')
-            .select('status')
-            .eq('id', id)
-            .single();
-        
-        if (checkError) {
-            console.error('检查状态失败:', checkError);
-            alert('检查状态失败: ' + checkError.message);
-            return;
-        }
-        
-        if (checkRecord.status !== 'pending') {
-            alert('这条记录已经被审核过了！');
-            await loadPendingContributions();
-            await loadHistoryContributions();
-            return;
-        }
-        
-        // 获取当前主要事迹
         const { data: currentPerson, error: fetchError } = await supabaseClient
             .from('person')
             .select('main_achievement')
@@ -280,10 +259,12 @@
         const currentText = currentPerson?.main_achievement || '';
         const timeStr = formatTime(createdAt);
         
-        const newEntry = '\n\n\n📝 【网友补充】\n' + newValue + '\n📅 补充时间：' + timeStr;
+        // 使用 <br> 实现换行（注意：需要转义存储，显示时会被解析）
+        const newEntry = '<br><br><br>📝 【网友补充】<br>' + newValue + '<br>📅 补充时间：' + timeStr;
         const newMainAchievement = currentText + newEntry;
         
-        // 更新 person 表
+        console.log('更新后的事迹:', newMainAchievement);
+        
         const { error: updateError } = await supabaseClient
             .from('person')
             .update({ main_achievement: newMainAchievement })
@@ -294,6 +275,27 @@
             alert('更新失败: ' + updateError.message);
             return;
         }
+        
+        const { error: contribError } = await supabaseClient
+            .from('user_contribution')
+            .update({ status: 'approved' })
+            .eq('id', id);
+        
+        if (contribError) {
+            console.error('状态更新失败:', contribError);
+            alert('状态更新失败: ' + contribError.message);
+            return;
+        }
+        
+        alert('审核通过！');
+        await loadPendingContributions();
+        await loadHistoryContributions();
+        
+    } catch (err) {
+        console.error('审核出错:', err);
+        alert('审核出错: ' + err.message);
+    }
+}
         
         // 【关键修改】使用 RPC 调用 SQL 函数更新状态
         const { error: contribError } = await supabaseClient.rpc('approve_contribution', {
