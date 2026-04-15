@@ -1,5 +1,3 @@
-// API: 添加山西名人（含去重检测 + 触发AI生成）
-
 const { createClient } = require('@supabase/supabase-js');
 
 const supabase = createClient(
@@ -7,7 +5,7 @@ const supabase = createClient(
     process.env.SUPABASE_ANON_KEY
 );
 
-module.exports = async (req, res) => {
+export default async function handler(req, res) {
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
     res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
@@ -56,20 +54,22 @@ module.exports = async (req, res) => {
             .single();
 
         if (insertError) {
+            console.error('插入错误:', insertError);
             return res.status(500).json({ success: false, error: '保存失败' });
         }
 
-        // 触发 AI 生成
+        // 触发 AI 生成（异步）
         const host = req.headers.host;
         fetch(`https://${host}/api/generate-ai`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ personId: newPerson.id })
-        }).catch(() => {});
+        }).catch(err => console.error('触发AI失败:', err));
 
         return res.status(200).json({ success: true, data: newPerson });
 
     } catch (error) {
+        console.error('API错误:', error);
         return res.status(500).json({ success: false, error: '服务器错误' });
     }
-};
+}
