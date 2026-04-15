@@ -7,9 +7,9 @@
     <link rel="stylesheet" href="style.css">
     <!-- 引入 Supabase 客户端 -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <!-- 在 </head> 之前添加 -->
+    <!-- Leaflet 地图库 -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script> 
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 </head>
 <body>
     <div class="header">
@@ -22,8 +22,9 @@
     </div>
 
     <div class="container">
-        <!-- 在 <div class="container"> 里面，搜索栏上面添加 -->
-    <div id="shanxi-map" style="height: 500px; margin-bottom: 2rem; border-radius: 16px; overflow: hidden;"></div>
+        <!-- 山西地图容器 -->
+        <div id="shanxi-map" style="height: 500px; margin-bottom: 2rem; border-radius: 16px; overflow: hidden; background: #f0f0f0;"></div>
+
         <!-- 搜索栏 -->
         <div class="search-bar">
             <input type="text" id="searchKeyword" placeholder="搜索人名..." autocomplete="off">
