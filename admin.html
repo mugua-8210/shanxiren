@@ -259,7 +259,7 @@
                 const currentText = currentPerson?.main_achievement || '';
                 const timeStr = formatTime(createdAt);
                 
-                const newEntry = '\n\n📝 【网友补充】' + newValue + '\n   └─ 补充时间：' + timeStr;
+                const newEntry = '\n\n\n📝 【网友补充】\n' + newValue + '\n📅 补充时间：' + timeStr;
                 const newMainAchievement = currentText + newEntry;
                 
                 console.log('更新后的事迹:', newMainAchievement);
