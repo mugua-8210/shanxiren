@@ -345,3 +345,117 @@ function showMessage(msg, type) {
 if (window.location.pathname.includes('person.html')) {
     loadPersonDetail();
 }
+// ========== 山西地图功能 ==========
+
+// 初始化山西地图
+async function initShanxiMap() {
+    const mapContainer = document.getElementById('shanxi-map');
+    if (!mapContainer) return;
+
+    // 创建地图（山西中心坐标：112.5°E, 37.8°N）
+    const map = L.map('shanxi-map').setView([37.8, 112.5], 7);
+
+    // 添加免费底图（CartoDB 浅色风格）
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
+        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>',
+        subdomains: 'abcd',
+        maxZoom: 19,
+        minZoom: 6
+    }).addTo(map);
+
+    try {
+        // 加载 GeoJSON 数据
+        const response = await fetch('/shanxi.geojson');
+        const geojsonData = await response.json();
+
+        // 定义城市名称映射（GeoJSON 里的字段名可能是 'name' 或 'NAME'）
+        function getCityName(feature) {
+            return feature.properties.name || feature.properties.NAME || feature.properties.市;
+        }
+
+        // 添加地图图层
+        const geojsonLayer = L.geoJSON(geojsonData, {
+            style: {
+                color: '#8b1a1a',      // 边框颜色（山西红）
+                weight: 2,
+                fillColor: '#d4a373',   // 填充色
+                fillOpacity: 0.4
+            },
+            onEachFeature: function (feature, layer) {
+                const cityName = getCityName(feature);
+                
+                // 鼠标悬停高亮
+                layer.on('mouseover', function () {
+                    layer.setStyle({
+                        fillColor: '#e07a5f',
+                        fillOpacity: 0.7,
+                        weight: 3
+                    });
+                    layer.bindTooltip(cityName, { sticky: true }).openTooltip();
+                });
+                
+                layer.on('mouseout', function () {
+                    geojsonLayer.resetStyle(layer);
+                    layer.closeTooltip();
+                });
+                
+                // 点击事件：搜索该地区的名人
+                layer.on('click', async function () {
+                    showMessage(`正在加载 ${cityName} 的名人...`, 'success');
+                    await searchByRegion(cityName);
+                    // 地图高亮选中的区域
+                    layer.setStyle({
+                        fillColor: '#8b1a1a',
+                        fillOpacity: 0.8
+                    });
+                    // 3秒后恢复颜色
+                    setTimeout(() => {
+                        geojsonLayer.resetStyle(layer);
+                    }, 2000);
+                });
+            }
+        }).addTo(map);
+
+        // 添加比例尺
+        L.control.scale({ metric: true, imperial: false }).addTo(map);
+
+    } catch (error) {
+        console.error('地图加载失败:', error);
+        mapContainer.innerHTML = '<div style="padding: 2rem; text-align: center; color: #666;">地图加载失败，请刷新重试</div>';
+    }
+}
+
+// 根据地区搜索名人（支持市、县名称模糊匹配）
+async function searchByRegion(regionName) {
+    const grid = document.getElementById('figuresGrid');
+    if (!grid) return;
+
+    grid.innerHTML = '<div class="loading">搜索中...</div>';
+
+    try {
+        // 调用搜索 API，按地区筛选
+        const response = await fetch(`/api/search?county=${encodeURIComponent(regionName)}`);
+        const result = await response.json();
+
+        if (result.success && result.data && result.data.length > 0) {
+            renderFigures(result.data);
+            // 滚动到列表区域
+            grid.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        } else {
+            grid.innerHTML = `<div class="loading">📌 ${regionName} 暂无名录记录，快去添加第一位吧！</div>`;
+        }
+    } catch (error) {
+        console.error('搜索失败:', error);
+        grid.innerHTML = '<div class="loading">搜索失败，请重试</div>';
+    }
+}
+
+// 页面加载时初始化地图
+if (document.getElementById('shanxi-map')) {
+    // 等待 DOM 完全加载
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', initShanxiMap);
+    } else {
+        initShanxiMap();
+    }
+}
