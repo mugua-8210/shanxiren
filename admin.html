@@ -393,52 +393,60 @@
         }
 
         async function approve(id, personId, fieldName, newValue, createdAt, isBatch = false) {
-            let updateData = {};
-            
-            if (fieldName === '事迹') {
-                const { data: currentPerson } = await supabaseClient
-                    .from('person')
-                    .select('main_achievement')
-                    .eq('id', personId)
-                    .single();
-                
-                const currentText = currentPerson?.main_achievement || '';
-                const timeStr = formatTime(createdAt);
-                // 追加新内容，带时间标记
-                updateData = { 
-                    main_achievement: currentText + '\n\n📝 【网友补充】' + newValue + '\n   └─ 补充时间：' + timeStr
-                };
-            } else {
-                updateData = { extra_info: newValue };
-            }
+    let updateData = {};
+    
+    if (fieldName === '事迹') {
+        const { data: currentPerson } = await supabaseClient
+            .from('person')
+            .select('main_achievement')
+            .eq('id', personId)
+            .single();
+        
+        const currentText = currentPerson?.main_achievement || '';
+        const timeStr = formatTime(createdAt);
+        
+        // 格式化新补充：独立成行，带分隔线和时间
+        const newEntry = `
+┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+📝 【网友补充】${newValue}
+📅 补充时间：${timeStr}
+┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`;
+        
+        // 追加到现有内容后面，独立成行
+        updateData = { 
+            main_achievement: currentText + (currentText ? '\n\n' : '') + newEntry
+        };
+    } else {
+        updateData = { extra_info: newValue };
+    }
 
-            const { error: updateError } = await supabaseClient
-                .from('person')
-                .update(updateData)
-                .eq('id', personId);
+    const { error: updateError } = await supabaseClient
+        .from('person')
+        .update(updateData)
+        .eq('id', personId);
 
-            if (updateError && !isBatch) {
-                alert('更新失败: ' + updateError.message);
-                return false;
-            }
+    if (updateError && !isBatch) {
+        alert('更新失败: ' + updateError.message);
+        return false;
+    }
 
-            const { error: contribError } = await supabaseClient
-                .from('user_contribution')
-                .update({ status: 'approved' })
-                .eq('id', id);
+    const { error: contribError } = await supabaseClient
+        .from('user_contribution')
+        .update({ status: 'approved' })
+        .eq('id', id);
 
-            if (contribError && !isBatch) {
-                alert('状态更新失败: ' + contribError.message);
-                return false;
-            }
+    if (contribError && !isBatch) {
+        alert('状态更新失败: ' + contribError.message);
+        return false;
+    }
 
-            if (!isBatch) {
-                alert('审核通过！');
-                await loadPendingContributions();  // 刷新待审核列表
-                await loadHistoryContributions();  // 同时刷新历史列表
-            }
-            return true;
-        }
+    if (!isBatch) {
+        alert('审核通过！');
+        await loadPendingContributions();
+        await loadHistoryContributions();
+    }
+    return true;
+}
 
         async function reject(id, isBatch = false) {
             const { error } = await supabaseClient
