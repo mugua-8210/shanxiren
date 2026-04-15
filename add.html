@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>添加山西名人 - 山西名人录</title>
+    <link rel="stylesheet" href="style.css">
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body>
+    <div class="header">
+        <h1><a href="index.html">🏔️ 山西名人录</a></h1>
+        <p>让世界看见山西 · 三晋儿女的骄傲</p>
+        <div class="nav-links">
+            <a href="index.html">🏠 首页</a>
+            <a href="add.html">➕ 添加名人</a>
+        </div>
+    </div>
+
+    <div class="container">
+        <div class="detail-card">
+            <h2>📝 添加山西名人</h2>
+            <p style="color: #666; margin-bottom: 1.5rem;">填写下方信息，AI 将自动为您生成详细介绍</p>
+
+            <form id="addPersonForm">
+                <div class="form-group">
+                    <label>* 姓名</label>
+                    <input type="text" id="name" required placeholder="例如：狄仁杰">
+                </div>
+
+                <div class="form-group">
+                    <label>朝代</label>
+                    <input type="text" id="dynasty" placeholder="例如：唐朝、宋朝、明朝">
+                </div>
+
+                <div class="form-group">
+                    <label>籍贯（山西的县/市）</label>
+                    <input type="text" id="county" placeholder="例如：太原、河津、闻喜">
+                </div>
+
+                <div class="form-group">
+                    <label>出生年份（公元）</label>
+                    <input type="number" id="birth_year" placeholder="例如：630">
+                </div>
+
+                <div class="form-group">
+                    <label>逝世年份（公元）</label>
+                    <input type="number" id="death_year" placeholder="例如：700">
+                </div>
+
+                <div class="form-group">
+                    <label>主要事迹</label>
+                    <textarea id="main_achievement" placeholder="简要介绍这位名人的主要成就..."></textarea>
+                </div>
+
+                <button type="submit" class="btn-submit">✨ 提交并生成 AI 介绍</button>
+            </form>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
