@@ -90,9 +90,6 @@
             font-size: 0.8rem;
             margin: 0.5rem 0;
         }
-        .select-all {
-            margin-left: 1rem;
-        }
         .contributor-text {
             color: #888;
             font-size: 0.75rem;
@@ -256,7 +253,7 @@
                     <p style="margin: 0.5rem 0;"><strong>补充内容：</strong>${escapeHtml(item.new_value)}</p>
                     <div class="time-text">📅 提交时间：${formatTime(item.created_at)}</div>
                     <div style="margin-top: 1rem; display: flex; gap: 1rem;">
-                        <button onclick="approve(${item.id}, ${item.person_id}, '${item.field_name}', '${escapeHtml(item.new_value)}')" style="background: #28a745; color: white; padding: 0.5rem 1rem; border: none; border-radius: 8px; cursor: pointer;">✅ 通过</button>
+                        <button onclick="approve(${item.id}, ${item.person_id}, '${item.field_name}', '${escapeHtml(item.new_value)}', '${formatTime(item.created_at)}')" style="background: #28a745; color: white; padding: 0.5rem 1rem; border: none; border-radius: 8px; cursor: pointer;">✅ 通过</button>
                         <button onclick="reject(${item.id})" style="background: #dc3545; color: white; padding: 0.5rem 1rem; border: none; border-radius: 8px; cursor: pointer;">❌ 拒绝</button>
                     </div>
                 </div>
@@ -358,7 +355,7 @@
             for (const id of selectedIds) {
                 const item = await getContributionById(id);
                 if (item) {
-                    await approve(id, item.person_id, item.field_name, item.new_value, true);
+                    await approve(id, item.person_id, item.field_name, item.new_value, item.created_at, true);
                 }
             }
             
@@ -387,7 +384,7 @@
         async function getContributionById(id) {
             const { data, error } = await supabaseClient
                 .from('user_contribution')
-                .select('person_id, field_name, new_value')
+                .select('person_id, field_name, new_value, created_at')
                 .eq('id', id)
                 .single();
             
@@ -395,18 +392,22 @@
             return data;
         }
 
-        async function approve(id, personId, fieldName, newValue, isBatch = false) {
+        async function approve(id, personId, fieldName, newValue, createdAt, isBatch = false) {
             let updateData = {};
+            
             if (fieldName === '事迹') {
-                const currentPerson = await supabaseClient
+                const { data: currentPerson } = await supabaseClient
                     .from('person')
                     .select('main_achievement')
                     .eq('id', personId)
                     .single();
                 
-                const currentText = currentPerson.data?.main_achievement || '';
-                // 追加新内容，不覆盖
-                updateData = { main_achievement: currentText + '\n\n【网友补充】' + newValue };
+                const currentText = currentPerson?.main_achievement || '';
+                const timeStr = formatTime(createdAt);
+                // 追加新内容，带时间标记
+                updateData = { 
+                    main_achievement: currentText + '\n\n📝 【网友补充】' + newValue + '\n   └─ 补充时间：' + timeStr
+                };
             } else {
                 updateData = { extra_info: newValue };
             }
@@ -433,7 +434,8 @@
 
             if (!isBatch) {
                 alert('审核通过！');
-                await loadPendingContributions();
+                await loadPendingContributions();  // 刷新待审核列表
+                await loadHistoryContributions();  // 同时刷新历史列表
             }
             return true;
         }
@@ -451,7 +453,8 @@
 
             if (!isBatch) {
                 alert('已拒绝');
-                await loadPendingContributions();
+                await loadPendingContributions();  // 刷新待审核列表
+                await loadHistoryContributions();  // 同时刷新历史列表
             }
             return true;
         }
