@@ -266,9 +266,12 @@ async function loadApprovedContributions(personId) {
         <div class="detail-card">
             <h3>📝 网友补充</h3>
             ${data.map(item => `
-                <div class="info-row">
+                <div class="info-row" style="margin-bottom: 1rem;">
                     <div class="info-label">${escapeHtml(item.field_name)}</div>
-                    <div class="info-value">${escapeHtml(item.new_value)}</div>
+                    <div class="info-value">
+                        ${escapeHtml(item.new_value)}
+                        <div class="contributor-text">📅 补充时间：${new Date(item.created_at).toLocaleString()}</div>
+                    </div>
                 </div>
             `).join('')}
         </div>
