@@ -60,7 +60,7 @@ async function loadFigures() {
     grid.innerHTML = '<div class="loading">加载中...</div>';
 
     try {
-        const response = await fetch('/api/search.js?all=true');
+        const response = await fetch('/api/search?all=true');
         const result = await response.json();
 
         if (result.success && result.data) {
@@ -106,7 +106,7 @@ async function searchFigures(keyword, dynasty, county) {
         if (dynasty) params.append('dynasty', dynasty);
         if (county) params.append('county', county);
 
-        const response = await fetch(`/api/search.js?${params.toString()}`);
+        const response = await fetch(`/api/search?${params.toString()}`);
         const result = await response.json();
 
         if (result.success) {
@@ -139,7 +139,7 @@ async function handleAddPerson(e) {
     submitBtn.disabled = true;
 
     try {
-        const response = await fetch('/api/add-person.js', {
+        const response = await fetch('/api/add-person', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(formData)
@@ -177,7 +177,7 @@ async function loadPersonDetail() {
     }
 
     try {
-        const response = await fetch(`/api/get-person.js?id=${personId}`);
+        const response = await fetch(`/api/get-person?id=${personId}`);
         const result = await response.json();
 
         if (result.success && result.data) {
@@ -232,7 +232,7 @@ async function loadAIContent(personId) {
     aiContainer.innerHTML = '<div class="loading">正在加载 AI 介绍...</div>';
 
     try {
-        const response = await fetch(`/api/generate-ai.js?id=${personId}`);
+        const response = await fetch(`/api/generate-ai?id=${personId}`);
         const result = await response.json();
 
         if (result.success && result.data) {
