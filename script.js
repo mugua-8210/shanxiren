@@ -368,38 +368,21 @@ function showMessage(msg, type) {
 
 // ========== 山西地图功能 ==========
 
-async function searchByRegion(regionName) {
+aasync function searchByRegion(regionName) {
     const grid = document.getElementById('figuresGrid');
     if (!grid) return;
 
     grid.innerHTML = '<div class="loading">搜索中...</div>';
 
     try {
-        let searchCity = null;
-        let searchCounty = null;
-        
-        if (cityToCounties[regionName]) {
-            searchCity = regionName;
-        } else if (countyToCity[regionName]) {
-            searchCounty = regionName;
-        } else {
-            searchCounty = regionName;
-        }
-        
-        let url;
-        if (searchCounty) {
-            url = `/api/search?county_exact=${encodeURIComponent(searchCounty)}`;
-        } else {
-            url = `/api/search?city_exact=${encodeURIComponent(searchCity)}`;
-        }
-        
-        const response = await fetch(url);
+        // 精确匹配 city 字段
+        const response = await fetch(`/api/search?city_exact=${encodeURIComponent(regionName)}`);
         const result = await response.json();
 
         if (result.success && result.data && result.data.length > 0) {
             renderFigures(result.data);
             grid.scrollIntoView({ behavior: 'smooth', block: 'start' });
-            showMessage(`找到 ${result.data.length} 位${searchCounty || searchCity}的名人`, 'success');
+            showMessage(`找到 ${result.data.length} 位${regionName}的名人`, 'success');
         } else {
             grid.innerHTML = `<div class="loading">📌 ${regionName} 暂无名录记录，快去添加第一位吧！</div>`;
         }
