@@ -35,6 +35,7 @@ document.addEventListener('DOMContentLoaded', () => {
     initSupabase();
     bindEvents();
     loadFigures();
+    initShanxiMap();  // 确保地图初始化
 });
 
 // 初始化 Supabase
@@ -209,7 +210,7 @@ async function loadPersonDetail() {
     }
 }
 
-// 格式化主要事迹（把换行符转成 <br>）
+// 格式化主要事迹
 function formatMainAchievement(text) {
     if (!text) return '暂无';
     let escaped = text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
@@ -368,7 +369,8 @@ function showMessage(msg, type) {
 
 // ========== 山西地图功能 ==========
 
-aasync function searchByRegion(regionName) {
+// 根据地区搜索名人（精确匹配 city 字段）
+async function searchByRegion(regionName) {
     const grid = document.getElementById('figuresGrid');
     if (!grid) return;
 
@@ -392,9 +394,22 @@ aasync function searchByRegion(regionName) {
     }
 }
 
+// 初始化山西地图
 async function initShanxiMap() {
     const mapContainer = document.getElementById('shanxi-map');
-    if (!mapContainer) return;
+    if (!mapContainer) {
+        console.log('地图容器不存在，跳过地图初始化');
+        return;
+    }
+
+    console.log('开始初始化地图...');
+
+    // 检查 Leaflet 是否加载
+    if (typeof L === 'undefined') {
+        console.error('Leaflet 库未加载');
+        mapContainer.innerHTML = '<div style="padding: 2rem; text-align: center; color: #666;">地图库加载失败，请刷新重试</div>';
+        return;
+    }
 
     const map = L.map('shanxi-map').setView([37.8, 112.5], 7);
 
@@ -407,6 +422,9 @@ async function initShanxiMap() {
 
     try {
         const response = await fetch('/shanxi.geojson');
+        if (!response.ok) {
+            throw new Error('GeoJSON 文件加载失败');
+        }
         const geojsonData = await response.json();
 
         function getCityName(feature) {
@@ -452,6 +470,7 @@ async function initShanxiMap() {
         }).addTo(map);
 
         L.control.scale({ metric: true, imperial: false }).addTo(map);
+        console.log('地图初始化成功');
 
     } catch (error) {
         console.error('地图加载失败:', error);
@@ -462,12 +481,4 @@ async function initShanxiMap() {
 // 页面初始化
 if (window.location.pathname.includes('person.html')) {
     loadPersonDetail();
-}
-
-if (document.getElementById('shanxi-map')) {
-    if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', initShanxiMap);
-    } else {
-        initShanxiMap();
-    }
 }
