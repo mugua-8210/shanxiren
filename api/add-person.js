@@ -1,4 +1,4 @@
-const { createClient } = require('@supabase/supabase-js');
+import { createClient } from '@supabase/supabase-js';
 
 const supabase = createClient(
     process.env.SUPABASE_URL,
@@ -19,15 +19,17 @@ export default async function handler(req, res) {
     }
 
     try {
-        const { name, dynasty, county, birth_year, death_year, main_achievement } = req.body;
+        // 添加 city 到解构中
+        const { name, dynasty, city, county, birth_year, death_year, main_achievement } = req.body;
 
         if (!name) {
             return res.status(400).json({ success: false, error: '姓名不能为空' });
         }
 
-        // 去重检测
-        let query = supabase.from('person').select('id, name, dynasty, county').eq('name', name);
+        // 去重检测（可选：加入 city 判断）
+        let query = supabase.from('person').select('id, name, dynasty, city, county').eq('name', name);
         if (dynasty) query = query.eq('dynasty', dynasty);
+        if (city) query = query.eq('city', city);
         if (county) query = query.eq('county', county);
 
         const { data: existing } = await query;
@@ -39,12 +41,13 @@ export default async function handler(req, res) {
             });
         }
 
-        // 插入新人物
+        // 插入新人物（添加 city 字段）
         const { data: newPerson, error: insertError } = await supabase
             .from('person')
             .insert([{
                 name,
                 dynasty: dynasty || null,
+                city: city || null,           // 新增
                 county: county || null,
                 birth_year: birth_year ? parseInt(birth_year) : null,
                 death_year: death_year ? parseInt(death_year) : null,
