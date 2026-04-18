@@ -11,7 +11,108 @@ async function callDeepSeek(prompt) {
     const apiKey = process.env.DEEPSEEK_API_KEY;
     if (!apiKey) {
         console.error('DeepSeek API Key 未配置');
-        throw new Error('DeepSeek API Key 未配置');
+        throw new Error('DeepSeek API Key 未配置');// API: AI 生成名人介绍（使用 GitHub Models - 完全免费）
+
+import { createClient } from '@supabase/supabase-js';
+
+const supabase = createClient(
+    process.env.SUPABASE_URL,
+    process.env.SUPABASE_ANON_KEY
+);
+
+const GITHUB_TOKEN = process.env.GITHUB_TOKEN;
+
+async function callGitHubModel(prompt) {
+    if (!GITHUB_TOKEN) {
+        throw new Error('请先在 Vercel 环境变量中配置 GITHUB_TOKEN');
+    }
+
+    const response = await fetch('https://models.inference.ai.azure.com/chat/completions', {
+        method: 'POST',
+        headers: {
+            'Authorization': `Bearer ${GITHUB_TOKEN}`,
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+            model: 'gpt-4o-mini',
+            messages: [
+                {
+                    role: 'system',
+                    content: '你是山西地方志专家，擅长介绍山西历史名人。回答要准确、生动，200字左右。'
+                },
+                {
+                    role: 'user',
+                    content: prompt
+                }
+            ],
+            temperature: 0.7,
+            max_tokens: 800
+        })
+    });
+
+    if (!response.ok) {
+        const errorText = await response.text();
+        console.error('GitHub Models API 错误:', response.status, errorText);
+        throw new Error(`GitHub Models 错误: ${response.status}`);
+    }
+
+    const data = await response.json();
+    return data.choices[0].message.content;
+}
+
+export default async function handler(req, res) {
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+
+    if (req.method === 'OPTIONS') {
+        return res.status(200).end();
+    }
+
+    try {
+        const { id, personId } = req.method === 'GET' ? req.query : req.body;
+        const pid = parseInt(id || personId);
+
+        if (!pid) {
+            return res.status(400).json({ success: false, error: '缺少人物ID' });
+        }
+
+        const { data: person, error: personError } = await supabase
+            .from('person')
+            .select('name, dynasty, county, main_achievement')
+            .eq('id', pid)
+            .single();
+
+        if (personError || !person) {
+            return res.status(404).json({ success: false, error: '人物不存在' });
+        }
+
+        let prompt = `请介绍山西名人 ${person.name}。`;
+        if (person.dynasty) prompt += ` 朝代：${person.dynasty}。`;
+        if (person.county) prompt += ` 籍贯：${person.county}。`;
+        if (person.main_achievement) prompt += ` 主要事迹：${person.main_achievement}。`;
+        prompt += ` 写一段200字左右的介绍。`;
+
+        const article = await callGitHubModel(prompt);
+
+        await supabase
+            .from('ai_content')
+            .upsert({
+                person_id: pid,
+                content_type: 'long_article',
+                content_json: article
+            }, { onConflict: 'person_id, content_type' });
+
+        if (req.method === 'GET') {
+            return res.status(200).json({ success: true, data: { long_article: article } });
+        }
+
+        return res.status(200).json({ success: true });
+
+    } catch (error) {
+        console.error('AI生成失败:', error);
+        return res.status(500).json({ success: false, error: error.message });
+    }
+}
     }
 
     console.log('调用 DeepSeek API，prompt 长度:', prompt.length);
