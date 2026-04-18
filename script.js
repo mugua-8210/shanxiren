@@ -30,12 +30,22 @@ for (const [city, counties] of Object.entries(cityToCounties)) {
     }
 }
 
+// 过滤特殊符号函数（保留中文、英文、数字、常用标点）
+function filterSpecialChars(text) {
+    if (!text) return '';
+    // 保留：中文、英文、数字、空格、常用中文标点、常用英文标点
+    let filtered = text.replace(/[^\u4e00-\u9fa5a-zA-Z0-9\s\。\，\！\？\；\：\“\”\‘\’\、\（\）\【\】\《\》\…\—\～\.\,\!\?\;\:\"\'\(\)]/g, '');
+    // 去除多余空格
+    filtered = filtered.replace(/\s+/g, ' ').trim();
+    return filtered;
+}
+
 // 等待 DOM 加载完成
 document.addEventListener('DOMContentLoaded', () => {
     initSupabase();
     bindEvents();
     loadFigures();
-    initShanxiMap();  // 确保地图初始化
+    initShanxiMap();
 });
 
 // 初始化 Supabase
@@ -142,6 +152,10 @@ async function searchFigures(keyword, dynasty, county) {
 async function handleAddPerson(e) {
     e.preventDefault();
 
+    let main_achievement = document.getElementById('main_achievement')?.value;
+    // 过滤特殊符号
+    main_achievement = filterSpecialChars(main_achievement);
+
     const formData = {
         name: document.getElementById('name')?.value,
         dynasty: document.getElementById('dynasty')?.value,
@@ -149,7 +163,7 @@ async function handleAddPerson(e) {
         county: document.getElementById('county')?.value,
         birth_year: document.getElementById('birth_year')?.value || null,
         death_year: document.getElementById('death_year')?.value || null,
-        main_achievement: document.getElementById('main_achievement')?.value
+        main_achievement: main_achievement
     };
 
     const submitBtn = e.target.querySelector('.btn-submit');
@@ -268,7 +282,7 @@ async function loadAIContent(personId) {
             if (result.data.structured) {
                 aiHtml += `
                     <div class="ai-section">
-                        <h3>📚 详细资料</h3>
+                        <h3>详细资料</h3>
                         <p>${escapeHtml(result.data.structured)}</p>
                     </div>
                 `;
@@ -276,7 +290,7 @@ async function loadAIContent(personId) {
             if (result.data.long_article) {
                 aiHtml += `
                     <div class="ai-section">
-                        <h3>📖 人物生平</h3>
+                        <h3>人物生平</h3>
                         <p>${escapeHtml(result.data.long_article)}</p>
                     </div>
                 `;
@@ -298,7 +312,10 @@ async function handleContribute(e) {
     const urlParams = new URLSearchParams(window.location.search);
     const personId = urlParams.get('id');
     const fieldName = document.getElementById('fieldName')?.value;
-    const newValue = document.getElementById('newValue')?.value;
+    let newValue = document.getElementById('newValue')?.value;
+
+    // 过滤特殊符号
+    newValue = filterSpecialChars(newValue);
 
     const submitBtn = e.target.querySelector('.btn-submit');
     const originalText = submitBtn.textContent;
@@ -377,7 +394,6 @@ async function searchByRegion(regionName) {
     grid.innerHTML = '<div class="loading">搜索中...</div>';
 
     try {
-        // 精确匹配 city 字段
         const response = await fetch(`/api/search?city_exact=${encodeURIComponent(regionName)}`);
         const result = await response.json();
 
@@ -404,7 +420,6 @@ async function initShanxiMap() {
 
     console.log('开始初始化地图...');
 
-    // 检查 Leaflet 是否加载
     if (typeof L === 'undefined') {
         console.error('Leaflet 库未加载');
         mapContainer.innerHTML = '<div style="padding: 2rem; text-align: center; color: #666;">地图库加载失败，请刷新重试</div>';
